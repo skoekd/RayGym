@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test - GymFlow</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://unpkg.com/lucide-react@0.263.1/dist/umd/lucide-react.js"></script>
+</head>
+<body>
+    <div id="root"></div>
+    
+    <script type="text/babel">
+        const { useState } = React;
+        const { Dumbbell, Plus } = lucideReact;
+        
+        const TestApp = () => {
+            const [count, setCount] = useState(0);
+            
+            return (
+                <div className="min-h-screen bg-slate-950 text-white p-8">
+                    <div className="max-w-md mx-auto">
+                        <div className="flex items-center gap-3 mb-6">
+                            <div className="w-12 h-12 bg-indigo-600 rounded-xl flex items-center justify-center">
+                                <Dumbbell className="w-6 h-6" />
+                            </div>
+                            <h1 className="text-2xl font-bold">GymFlow Test</h1>
+                        </div>
+                        
+                        <div className="bg-slate-800 rounded-xl p-6">
+                            <p className="text-lg mb-4">✅ React is working!</p>
+                            <p className="text-lg mb-4">✅ Lucide icons are working!</p>
+                            <p className="text-lg mb-4">✅ Tailwind is working!</p>
+                            
+                            <button 
+                                onClick={() => setCount(count + 1)}
+                                className="bg-indigo-600 hover:bg-indigo-500 px-6 py-3 rounded-xl font-bold transition-all flex items-center gap-2"
+                            >
+                                <Plus className="w-5 h-5" />
+                                Clicked {count} times
+                            </button>
+                            
+                            <p className="text-sm text-slate-400 mt-6">
+                                If you can see this and the button works, everything is set up correctly!
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+        
+        ReactDOM.render(<TestApp />, document.getElementById('root'));
+    </script>
+</body>
+</html>
