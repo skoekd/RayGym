@@ -3,7 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>IronFlow - Workout Tracker</title>
+    <meta name="theme-color" content="#DC2626">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <title>IronFlow - Complete</title>
     <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
@@ -19,119 +22,70 @@
     <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-    
     <style>
         * { -webkit-tap-highlight-color: transparent; }
         body { overscroll-behavior: none; -webkit-font-smoothing: antialiased; margin: 0; padding: 0; }
-        .racing-stripes { 
-            background: linear-gradient(90deg, transparent 45%, #2563EB 45%, #2563EB 48%, #06B6D4 48%, #06B6D4 52%, #2563EB 52%, #2563EB 55%, transparent 55%); 
-        }
-        .red-metallic { 
-            background: linear-gradient(135deg, #DC2626 0%, #EF4444 25%, #DC2626 50%, #B91C1C 75%, #991B1B 100%); 
-        }
-        .metallic-shine { 
-            background: linear-gradient(135deg, rgba(255,255,255,0.3) 0%, rgba(255,255,255,0.1) 50%, rgba(255,255,255,0.3) 100%); 
-        }
+        .racing-stripes { background: linear-gradient(90deg, transparent 45%, #2563EB 45%, #2563EB 48%, #06B6D4 48%, #06B6D4 52%, #2563EB 52%, #2563EB 55%, transparent 55%); }
+        .red-metallic { background: linear-gradient(135deg, #DC2626 0%, #EF4444 25%, #DC2626 50%, #B91C1C 75%, #991B1B 100%); }
+        .metallic-shine { background: linear-gradient(135deg, rgba(255,255,255,0.3) 0%, rgba(255,255,255,0.1) 50%, rgba(255,255,255,0.3) 100%); }
+        .chrome-gradient { background: linear-gradient(180deg, #f8fafc 0%, #e2e8f0 25%, #cbd5e1 50%, #94a3b8 75%, #64748b 100%); }
         @keyframes pulse-gauge { 0%, 100% { transform: scale(1); opacity: 0.5; } 50% { transform: scale(1.05); opacity: 0.8; } }
         .gauge-indicator { animation: pulse-gauge 2s ease-in-out infinite; }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        .animate-fadeIn { animation: fadeIn 0.2s ease-out; }
         .scrollbar-hide::-webkit-scrollbar { display: none; }
         .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
+        input[type="number"]::-webkit-inner-spin-button, input[type="number"]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+        input[type="number"] { -moz-appearance: textfield; }
     </style>
 </head>
 <body class="bg-slate-950 text-white">
     <div id="root"></div>
     
     <script type="text/babel">
-        const { useState } = React;
+        const { useState, useEffect } = React;
 
-        // Inline SVG Icon Components (guaranteed to work)
+        // SVG Icon Components
         const Icon = ({ children, className = "", ...props }) => (
             <svg className={className} fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24" {...props}>
                 {children}
             </svg>
         );
 
-        const Dumbbell = ({ className }) => (
-            <Icon className={className}>
-                <path d="M14.4 14.4 9.6 9.6" />
-                <path d="M18.657 21.485a2 2 0 1 1-2.829-2.828l-1.767 1.768a2 2 0 1 1-2.829-2.829l6.364-6.364a2 2 0 1 1 2.829 2.829l-1.768 1.767a2 2 0 1 1 2.828 2.829z" />
-                <path d="m21.5 21.5-1.4-1.4" />
-                <path d="M3.9 3.9 2.5 2.5" />
-                <path d="M6.404 12.768a2 2 0 1 1-2.829-2.829l1.768-1.767a2 2 0 1 1-2.828-2.829l2.828-2.828a2 2 0 1 1 2.829 2.828l1.767-1.768a2 2 0 1 1 2.829 2.829z" />
-            </Icon>
-        );
+        const Dumbbell = ({ className }) => <Icon className={className}><path d="M14.4 14.4 9.6 9.6" /><path d="M18.657 21.485a2 2 0 1 1-2.829-2.828l-1.767 1.768a2 2 0 1 1-2.829-2.829l6.364-6.364a2 2 0 1 1 2.829 2.829l-1.768 1.767a2 2 0 1 1 2.828 2.829z" /><path d="m21.5 21.5-1.4-1.4" /><path d="M3.9 3.9 2.5 2.5" /><path d="M6.404 12.768a2 2 0 1 1-2.829-2.829l1.768-1.767a2 2 0 1 1-2.828-2.829l2.828-2.828a2 2 0 1 1 2.829 2.828l1.767-1.768a2 2 0 1 1 2.829 2.829z" /></Icon>;
+        const Plus = ({ className }) => <Icon className={className}><path d="M5 12h14" /><path d="M12 5v14" /></Icon>;
+        const X = ({ className }) => <Icon className={className}><path d="M18 6 6 18" /><path d="m6 6 12 12" /></Icon>;
+        const Settings = ({ className }) => <Icon className={className}><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z" /><circle cx="12" cy="12" r="3" /></Icon>;
+        const ChevronDown = ({ className }) => <Icon className={className}><path d="m6 9 6 6 6-6" /></Icon>;
+        const ChevronRight = ({ className }) => <Icon className={className}><path d="m9 18 6-6-6-6" /></Icon>;
+        const Calendar = ({ className }) => <Icon className={className}><rect width="18" height="18" x="3" y="4" rx="2" ry="2" /><line x1="16" x2="16" y1="2" y2="6" /><line x1="8" x2="8" y1="2" y2="6" /><line x1="3" x2="21" y1="10" y2="10" /></Icon>;
+        const BarChart3 = ({ className }) => <Icon className={className}><line x1="12" x2="12" y1="20" y2="10" /><line x1="18" x2="18" y1="20" y2="4" /><line x1="6" x2="6" y1="20" y2="16" /></Icon>;
+        const Shuffle = ({ className }) => <Icon className={className}><path d="M2 18h1.4c1.3 0 2.5-.6 3.3-1.7l6.1-8.6c.7-1.1 2-1.7 3.3-1.7H22" /><path d="m18 2 4 4-4 4" /><path d="M2 6h1.9c1.5 0 2.9.9 3.6 2.2" /><path d="M22 18h-5.9c-1.3 0-2.6-.7-3.3-1.8l-.5-.8" /><path d="m18 14 4 4-4 4" /></Icon>;
+        const Zap = ({ className }) => <Icon className={className}><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" /></Icon>;
+        const Activity = ({ className }) => <Icon className={className}><path d="M22 12h-4l-3 9L9 3l-3 9H2" /></Icon>;
+        const RefreshCw = ({ className }) => <Icon className={className}><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8" /><path d="M21 3v5h-5" /><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16" /><path d="M8 16H3v5" /></Icon>;
+        const Check = ({ className }) => <Icon className={className}><polyline points="20 6 9 17 4 12" /></Icon>;
 
-        const Plus = ({ className }) => (
-            <Icon className={className}>
-                <path d="M5 12h14" />
-                <path d="M12 5v14" />
-            </Icon>
-        );
+        // Exercise substitution database
+        const EXERCISE_SUBS = {"Dumbbell Incline Chest Press":[{"name":"Double Dumbbell Reverse Grip Bench Press","difficulty":"Novice","equipment":"Dumbbell"},{"name":"Double Dumbbell Glute Bridge Isometric Floor Press","difficulty":"Novice","equipment":"Dumbbell"},{"name":"Double Dumbbell Incline Bench Chest Fly","difficulty":"Beginner","equipment":"Dumbbell"},{"name":"Single Arm Dumbbell Bench Press","difficulty":"Beginner","equipment":"Dumbbell"},{"name":"Double Dumbbell Bench Press","difficulty":"Beginner","equipment":"Dumbbell"},{"name":"Double Dumbbell Incline Bench Press","difficulty":"Beginner","equipment":"Dumbbell"},{"name":"Double Dumbbell Decline Bench Press","difficulty":"Beginner","equipment":"Dumbbell"},{"name":"Double Dumbbell Chest Fly","difficulty":"Beginner","equipment":"Dumbbell"},{"name":"Barbell Bench Press","difficulty":"Novice","equipment":"Barbell"},{"name":"Barbell Incline Bench Press","difficulty":"Novice","equipment":"Barbell"},{"name":"Bodyweight Push Up","difficulty":"Novice","equipment":"Bodyweight"},{"name":"Cable Chest Press","difficulty":"Beginner","equipment":"Cable"}],"Machine Chest Press":[{"name":"Double Cable Chest Fly","difficulty":"Beginner","equipment":"Cable"},{"name":"Double Cable High to Low Chest Fly","difficulty":"Beginner","equipment":"Cable"},{"name":"Double Cable Low to High Chest Fly","difficulty":"Beginner","equipment":"Cable"},{"name":"Double Dumbbell Reverse Grip Bench Press","difficulty":"Novice","equipment":"Dumbbell"},{"name":"Double Dumbbell Bench Press","difficulty":"Beginner","equipment":"Dumbbell"},{"name":"Barbell Bench Press","difficulty":"Novice","equipment":"Barbell"},{"name":"Bodyweight Push Up","difficulty":"Novice","equipment":"Bodyweight"},{"name":"Cable Chest Press","difficulty":"Beginner","equipment":"Cable"}],"Low to High Cable Fly":[{"name":"Double Cable Chest Fly","difficulty":"Beginner","equipment":"Cable"},{"name":"Double Cable High to Low Chest Fly","difficulty":"Beginner","equipment":"Cable"},{"name":"Double Cable Low to High Chest Fly","difficulty":"Beginner","equipment":"Cable"},{"name":"Double Dumbbell Chest Fly","difficulty":"Beginner","equipment":"Dumbbell"},{"name":"Double Dumbbell Incline Bench Chest Fly","difficulty":"Beginner","equipment":"Dumbbell"}],"Feet Elevated Push Up":[{"name":"Bodyweight Push Up","difficulty":"Novice","equipment":"Bodyweight"},{"name":"Bodyweight Kneeling Push Up","difficulty":"Beginner","equipment":"Bodyweight"},{"name":"Bodyweight Eccentric Push Up","difficulty":"Beginner","equipment":"Bodyweight"},{"name":"Bodyweight Burpee","difficulty":"Intermediate","equipment":"Bodyweight"},{"name":"Bodyweight Archer Push Up","difficulty":"Intermediate","equipment":"Bodyweight"},{"name":"Parallette Push Up","difficulty":"Novice","equipment":"Parallette Bars"}],"T-Bar Row":[{"name":"Barbell Pendlay Row","difficulty":"Novice","equipment":"Barbell"},{"name":"Barbell Bent Over Row","difficulty":"Novice","equipment":"Barbell"},{"name":"Barbell Prone Row","difficulty":"Novice","equipment":"Barbell"},{"name":"Barbell Inverted Row","difficulty":"Novice","equipment":"Barbell"},{"name":"Barbell Conventional Deadlift","difficulty":"Novice","equipment":"Barbell"},{"name":"Barbell Sumo Deadlift","difficulty":"Novice","equipment":"Barbell"},{"name":"Landmine V Grip Row","difficulty":"Novice","equipment":"Landmine"},{"name":"Single Arm Landmine Row","difficulty":"Novice","equipment":"Landmine"}],"Lat Pulldown":[{"name":"Cable Straight Bar Pullover","difficulty":"Novice","equipment":"Cable"},{"name":"Single Arm Cable Half Kneeling Lat Pulldown","difficulty":"Novice","equipment":"Cable"},{"name":"Cable Wide Grip Lat Pulldown","difficulty":"Beginner","equipment":"Cable"},{"name":"Cable Reverse Grip Lat Pulldown","difficulty":"Beginner","equipment":"Cable"},{"name":"Cable V Grip Lat Pulldown","difficulty":"Beginner","equipment":"Cable"},{"name":"Ring Eccentric Pull Up","difficulty":"Novice","equipment":"Gymnastic Rings"}],"Single Arm Pulldown":[{"name":"Single Arm Cable Half Kneeling Lat Pulldown","difficulty":"Novice","equipment":"Cable"},{"name":"Single Arm Cable Shotgun Row","difficulty":"Novice","equipment":"Cable"},{"name":"Cable Wide Grip Lat Pulldown","difficulty":"Beginner","equipment":"Cable"},{"name":"Double Dumbbell Pendlay Row","difficulty":"Novice","equipment":"Dumbbell"}],"Prone Incline DB Row":[{"name":"Double Dumbbell Pendlay Row","difficulty":"Novice","equipment":"Dumbbell"},{"name":"Double Dumbbell Incline Bench Prone Row","difficulty":"Novice","equipment":"Dumbbell"},{"name":"Double Dumbbell Prone Row","difficulty":"Novice","equipment":"Dumbbell"},{"name":"Single Arm Dumbbell Incline Bench Prone Row","difficulty":"Novice","equipment":"Dumbbell"},{"name":"Double Dumbbell Bent Over Row","difficulty":"Beginner","equipment":"Dumbbell"}],"Seated Hamstring Curl":[{"name":"Cable Prone Single Leg Hamstring Curl","difficulty":"Beginner","equipment":"Cable"},{"name":"Cable Prone Bench Hamstring Curl","difficulty":"Novice","equipment":"Cable"},{"name":"Cable Standing Single Leg Hamstring Curl","difficulty":"Novice","equipment":"Cable"},{"name":"Double Dumbbell Romanian Deadlift","difficulty":"Beginner","equipment":"Dumbbell"},{"name":"Dumbbell Crush Grip Romanian Deadlift","difficulty":"Beginner","equipment":"Dumbbell"}],"Bulgarian Split Squat":[{"name":"Double Dumbbell Thruster","difficulty":"Novice","equipment":"Dumbbell"},{"name":"Dumbbell Goblet Squat","difficulty":"Beginner","equipment":"Dumbbell"},{"name":"Double Dumbbell Suitcase Step Up","difficulty":"Novice","equipment":"Dumbbell"},{"name":"Double Dumbbell Suitcase Alternating Forward Lunge","difficulty":"Novice","equipment":"Dumbbell"},{"name":"Double Dumbbell Suitcase Split Squat","difficulty":"Novice","equipment":"Dumbbell"},{"name":"Double Dumbbell Front Rack Squat","difficulty":"Novice","equipment":"Dumbbell"}],"Hack Squat":[{"name":"Barbell Box Back Squat","difficulty":"Novice","equipment":"Barbell"},{"name":"Barbell High Bar Back Squat","difficulty":"Novice","equipment":"Barbell"},{"name":"Barbell Back Rack Split Squat","difficulty":"Novice","equipment":"Barbell"},{"name":"Barbell Front Rack Squat","difficulty":"Intermediate","equipment":"Barbell"},{"name":"Barbell Low Bar Back Squat","difficulty":"Intermediate","equipment":"Barbell"}],"Alternating Lunge Barbell":[{"name":"Barbell Box Back Squat","difficulty":"Novice","equipment":"Barbell"},{"name":"Barbell High Bar Back Squat","difficulty":"Novice","equipment":"Barbell"},{"name":"Barbell Back Rack Split Squat","difficulty":"Novice","equipment":"Barbell"},{"name":"Barbell Front Rack Squat","difficulty":"Intermediate","equipment":"Barbell"}],"Seated Shoulder Press":[{"name":"Double Dumbbell Z Press","difficulty":"Novice","equipment":"Dumbbell"},{"name":"Dumbbell Crush Grip Z Press","difficulty":"Novice","equipment":"Dumbbell"},{"name":"Double Dumbbell Push Press","difficulty":"Novice","equipment":"Dumbbell"},{"name":"Single Arm Dumbbell Push Press","difficulty":"Novice","equipment":"Dumbbell"},{"name":"Barbell Overhead Press","difficulty":"Novice","equipment":"Barbell"},{"name":"Barbell Push Press","difficulty":"Novice","equipment":"Barbell"}],"Dumbbell Side Lateral Raise":[{"name":"Double Dumbbell Lateral Raise","difficulty":"Beginner","equipment":"Dumbbell"},{"name":"Double Dumbbell Seated Lateral Raise","difficulty":"Beginner","equipment":"Dumbbell"},{"name":"Single Arm Cable Lateral Raise","difficulty":"Beginner","equipment":"Cable"}],"Machine Preacher Curl":[{"name":"Cable Guillotine Curl","difficulty":"Novice","equipment":"Cable"},{"name":"Cable Supine Bicep Curl","difficulty":"Novice","equipment":"Cable"},{"name":"Cable Straight Bar High Bicep Curl","difficulty":"Novice","equipment":"Cable"},{"name":"Single Arm Cable Bicep Curl","difficulty":"Novice","equipment":"Cable"},{"name":"Cable Straight Bar Bicep Curl","difficulty":"Beginner","equipment":"Cable"},{"name":"Barbell Curl","difficulty":"Beginner","equipment":"Barbell"},{"name":"Dumbbell Curl","difficulty":"Beginner","equipment":"Dumbbell"}],"Cross Body Tricep Extension":[{"name":"Cable Rope Skull Crusher","difficulty":"Novice","equipment":"Cable"},{"name":"Single Arm Cable Tricep Kickback","difficulty":"Beginner","equipment":"Cable"},{"name":"Cable Straight Bar Skull Crusher","difficulty":"Novice","equipment":"Cable"},{"name":"Double Dumbbell Incline Bench Prone Tricep Kickback","difficulty":"Beginner","equipment":"Dumbbell"}],"Low Pulley Cable Curl":[{"name":"Cable Guillotine Curl","difficulty":"Novice","equipment":"Cable"},{"name":"Cable Supine Bicep Curl","difficulty":"Novice","equipment":"Cable"},{"name":"Single Arm Cable Bicep Curl","difficulty":"Novice","equipment":"Cable"},{"name":"Cable Straight Bar Bicep Curl","difficulty":"Beginner","equipment":"Cable"},{"name":"Barbell Curl","difficulty":"Beginner","equipment":"Barbell"},{"name":"Dumbbell Curl","difficulty":"Beginner","equipment":"Dumbbell"}]};
 
-        const X = ({ className }) => (
-            <Icon className={className}>
-                <path d="M18 6 6 18" />
-                <path d="m6 6 12 12" />
-            </Icon>
-        );
-
-        const Settings = ({ className }) => (
-            <Icon className={className}>
-                <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z" />
-                <circle cx="12" cy="12" r="3" />
-            </Icon>
-        );
-
-        const ChevronDown = ({ className }) => (
-            <Icon className={className}>
-                <path d="m6 9 6 6 6-6" />
-            </Icon>
-        );
-
-        const Calendar = ({ className }) => (
-            <Icon className={className}>
-                <rect width="18" height="18" x="3" y="4" rx="2" ry="2" />
-                <line x1="16" x2="16" y1="2" y2="6" />
-                <line x1="8" x2="8" y1="2" y2="6" />
-                <line x1="3" x2="21" y1="10" y2="10" />
-            </Icon>
-        );
-
-        const BarChart = ({ className }) => (
-            <Icon className={className}>
-                <line x1="12" x2="12" y1="20" y2="10" />
-                <line x1="18" x2="18" y1="20" y2="4" />
-                <line x1="6" x2="6" y1="20" y2="16" />
-            </Icon>
-        );
-
-        const Shuffle = ({ className }) => (
-            <Icon className={className}>
-                <path d="M2 18h1.4c1.3 0 2.5-.6 3.3-1.7l6.1-8.6c.7-1.1 2-1.7 3.3-1.7H22" />
-                <path d="m18 2 4 4-4 4" />
-                <path d="M2 6h1.9c1.5 0 2.9.9 3.6 2.2" />
-                <path d="M22 18h-5.9c-1.3 0-2.6-.7-3.3-1.8l-.5-.8" />
-                <path d="m18 14 4 4-4 4" />
-            </Icon>
-        );
-
-        const Zap = ({ className }) => (
-            <Icon className={className}>
-                <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
-            </Icon>
-        );
-
-        const Activity = ({ className }) => (
-            <Icon className={className}>
-                <path d="M22 12h-4l-3 9L9 3l-3 9H2" />
-            </Icon>
-        );
-
-        // Main App
         function App() {
             const [activeTab, setActiveTab] = useState('push');
-            const [expanded, setExpanded] = useState(null);
+            const [showAddModal, setShowAddModal] = useState(false);
             const [showSettings, setShowSettings] = useState(false);
+            const [showSubstitutes, setShowSubstitutes] = useState(false);
+            const [currentExercise, setCurrentExercise] = useState(null);
+            const [selectedExercise, setSelectedExercise] = useState(null);
+            const [weight, setWeight] = useState('');
+            const [reps, setReps] = useState('');
+            const [notes, setNotes] = useState('');
+            const [gSheetUrl, setGSheetUrl] = useState(localStorage.getItem('gSheetUrl') || '');
+            const [recentWorkouts, setRecentWorkouts] = useState([]);
+            const [expandedExercise, setExpandedExercise] = useState(null);
+            const [customExercises, setCustomExercises] = useState(() => {
+                const saved = localStorage.getItem('customExercises');
+                return saved ? JSON.parse(saved) : {};
+            });
 
             const programs = {
                 push: {
@@ -177,6 +131,89 @@
                 }
             };
 
+            const getDisplayExercise = (originalName) => customExercises[originalName] || originalName;
+
+            const substituteExercise = (originalName, newName) => {
+                const updated = { ...customExercises, [originalName]: newName };
+                setCustomExercises(updated);
+                localStorage.setItem('customExercises', JSON.stringify(updated));
+                setShowSubstitutes(false);
+            };
+
+            const resetExercise = (originalName) => {
+                const updated = { ...customExercises };
+                delete updated[originalName];
+                setCustomExercises(updated);
+                localStorage.setItem('customExercises', JSON.stringify(updated));
+            };
+
+            const handleQuickAdd = (exercise) => {
+                setCurrentExercise(exercise);
+                setShowAddModal(true);
+            };
+
+            const handleShowSubstitutes = (exercise) => {
+                setSelectedExercise(exercise);
+                setShowSubstitutes(true);
+            };
+
+            const saveToGoogleSheets = async (workoutData) => {
+                const workout = { ...workoutData, timestamp: new Date().toISOString() };
+                const recent = JSON.parse(localStorage.getItem('recentWorkouts') || '[]');
+                recent.unshift(workout);
+                localStorage.setItem('recentWorkouts', JSON.stringify(recent.slice(0, 20)));
+                setRecentWorkouts(recent.slice(0, 20));
+
+                if (gSheetUrl) {
+                    try {
+                        await fetch(gSheetUrl, {
+                            method: 'POST',
+                            mode: 'no-cors',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(workoutData)
+                        });
+                        alert('✅ Workout logged successfully!');
+                    } catch (error) {
+                        alert('✅ Saved locally!');
+                    }
+                } else {
+                    alert('✅ Workout saved locally!');
+                }
+            };
+
+            const handleSubmitWorkout = (e) => {
+                e.preventDefault();
+                if (!currentExercise || !weight || !reps) {
+                    alert('Please fill in weight and reps');
+                    return;
+                }
+
+                const displayName = getDisplayExercise(currentExercise.name);
+                saveToGoogleSheets({
+                    exercise: displayName,
+                    originalExercise: currentExercise.name,
+                    weight: parseFloat(weight),
+                    reps: parseInt(reps),
+                    notes,
+                    category: activeTab
+                });
+                setWeight('');
+                setReps('');
+                setNotes('');
+                setShowAddModal(false);
+            };
+
+            const saveSettings = () => {
+                localStorage.setItem('gSheetUrl', gSheetUrl);
+                setShowSettings(false);
+                alert('⚙️ Settings saved!');
+            };
+
+            useEffect(() => {
+                const recent = JSON.parse(localStorage.getItem('recentWorkouts') || '[]');
+                setRecentWorkouts(recent.slice(0, 20));
+            }, []);
+
             return (
                 <div className="min-h-screen pb-32">
                     <div className="h-1 racing-stripes"></div>
@@ -197,10 +234,7 @@
                                         <p className="text-xs text-slate-400 tracking-widest">PRECISION TRAINING</p>
                                     </div>
                                 </div>
-                                <button 
-                                    onClick={() => setShowSettings(!showSettings)}
-                                    className="p-3 hover:bg-slate-800 rounded-lg transition-all border border-slate-700"
-                                >
+                                <button onClick={() => setShowSettings(true)} className="p-3 hover:bg-slate-800 rounded-lg transition-all border border-slate-700">
                                     <Settings className="w-5 h-5 text-slate-400" />
                                 </button>
                             </div>
@@ -213,153 +247,255 @@
                                 <button
                                     key={key}
                                     onClick={() => setActiveTab(key)}
-                                    className={`flex-shrink-0 px-6 py-3 font-racing text-lg tracking-wider transition-all duration-200 ${
-                                        activeTab === key 
-                                            ? 'bg-racing-red text-white scale-105 shadow-lg' 
-                                            : 'bg-slate-800 text-slate-400 hover:bg-slate-700'
+                                    className={`flex-shrink-0 px-6 py-3 font-racing text-lg tracking-wider transition-all ${
+                                        activeTab === key ? 'bg-racing-red text-white scale-105' : 'bg-slate-800 text-slate-400'
                                     }`}
                                     style={{ clipPath: 'polygon(8% 0%, 100% 0%, 92% 100%, 0% 100%)' }}
                                 >
-                                    <span>{program.icon}</span> {program.name}
+                                    {program.icon} {program.name}
                                 </button>
                             ))}
                         </div>
 
                         <div className="space-y-4">
-                            {programs[activeTab].exercises.map((ex, idx) => (
-                                <div 
-                                    key={idx} 
-                                    className="bg-slate-900 border-2 border-slate-800 hover:border-racing-red transition-all duration-300"
-                                    style={{ clipPath: 'polygon(0 0, 100% 0, 100% calc(100% - 12px), calc(100% - 12px) 100%, 0 100%)' }}
-                                >
-                                    <button
-                                        onClick={() => setExpanded(expanded === idx ? null : idx)}
-                                        className="w-full p-6 flex items-center justify-between text-left"
-                                    >
-                                        <div className="flex-1">
-                                            <h3 className="font-bold text-lg text-white mb-2 hover:text-racing-red transition-colors">
-                                                {ex.name}
-                                            </h3>
-                                            <div className="flex gap-5 text-sm">
-                                                <span className="flex items-center gap-2 text-slate-400">
-                                                    <div className="w-2 h-2 rounded-full bg-racing-red gauge-indicator"></div>
-                                                    <span className="font-racing tracking-wide">{ex.sets} SETS</span>
-                                                </span>
-                                                <span className="flex items-center gap-2 text-slate-400">
-                                                    <div className="w-2 h-2 rounded-full bg-racing-blue gauge-indicator" style={{animationDelay: '0.3s'}}></div>
-                                                    <span className="font-racing tracking-wide">{ex.reps} REPS</span>
-                                                </span>
-                                                <span className="flex items-center gap-2 text-slate-400">
-                                                    <div className="w-2 h-2 rounded-full bg-racing-cyan gauge-indicator" style={{animationDelay: '0.6s'}}></div>
-                                                    <span className="font-racing tracking-wide">{ex.rest}S</span>
-                                                </span>
+                            {programs[activeTab].exercises.map((ex, idx) => {
+                                const displayName = getDisplayExercise(ex.name);
+                                const isCustom = displayName !== ex.name;
+                                
+                                return (
+                                    <div key={idx} className="bg-slate-900 border-2 border-slate-800 hover:border-racing-red transition-all" style={{ clipPath: 'polygon(0 0, 100% 0, 100% calc(100% - 12px), calc(100% - 12px) 100%, 0 100%)' }}>
+                                        <div className="absolute top-0 left-0 h-full w-1 chrome-gradient"></div>
+                                        <button onClick={() => setExpandedExercise(expandedExercise === idx ? null : idx)} className="w-full p-6 flex items-center justify-between text-left">
+                                            <div className="flex-1 pl-3">
+                                                <div className="flex items-center gap-2 mb-2">
+                                                    <h3 className="font-bold text-lg text-white">{displayName}</h3>
+                                                    {isCustom && <span className="px-2 py-0.5 bg-racing-blue/20 border border-racing-blue text-racing-blue text-xs font-racing">ALT</span>}
+                                                </div>
+                                                <div className="flex gap-5 text-sm">
+                                                    <span className="flex items-center gap-2 text-slate-400">
+                                                        <div className="w-2 h-2 rounded-full bg-racing-red gauge-indicator"></div>
+                                                        <span className="font-racing">{ex.sets} SETS</span>
+                                                    </span>
+                                                    <span className="flex items-center gap-2 text-slate-400">
+                                                        <div className="w-2 h-2 rounded-full bg-racing-blue gauge-indicator" style={{animationDelay: '0.3s'}}></div>
+                                                        <span className="font-racing">{ex.reps} REPS</span>
+                                                    </span>
+                                                    <span className="flex items-center gap-2 text-slate-400">
+                                                        <div className="w-2 h-2 rounded-full bg-racing-cyan gauge-indicator" style={{animationDelay: '0.6s'}}></div>
+                                                        <span className="font-racing">{ex.rest}S</span>
+                                                    </span>
+                                                </div>
                                             </div>
-                                        </div>
-                                        <ChevronDown className={`w-6 h-6 text-slate-500 transition-transform duration-300 ${expanded === idx ? 'rotate-180 text-racing-red' : ''}`} />
-                                    </button>
+                                            <ChevronDown className={`w-6 h-6 text-slate-500 transition-transform ${expandedExercise === idx ? 'rotate-180 text-racing-red' : ''}`} />
+                                        </button>
 
-                                    {expanded === idx && (
-                                        <div className="px-6 pb-6 border-t-2 border-slate-800 pt-5">
-                                            <div className="grid grid-cols-2 gap-4 mb-4">
-                                                <div className="bg-slate-950 p-4 border-l-4 border-racing-red relative">
-                                                    <div className="absolute top-2 right-2 opacity-10">
-                                                        <Zap className="w-8 h-8 text-racing-red" />
+                                        {expandedExercise === idx && (
+                                            <div className="px-6 pb-6 border-t-2 border-slate-800 pt-5 space-y-4">
+                                                <div className="grid grid-cols-2 gap-4">
+                                                    <div className="bg-slate-950 p-4 border-l-4 border-racing-red relative">
+                                                        <div className="absolute top-2 right-2 opacity-10"><Zap className="w-8 h-8 text-racing-red" /></div>
+                                                        <p className="text-xs text-slate-500 mb-1 font-racing">SETS</p>
+                                                        <p className="text-3xl font-racing text-racing-red">{ex.sets}</p>
                                                     </div>
-                                                    <p className="text-xs text-slate-500 mb-1 font-racing tracking-wide">SETS</p>
-                                                    <p className="text-3xl font-racing text-racing-red tracking-wider">{ex.sets}</p>
-                                                </div>
-                                                <div className="bg-slate-950 p-4 border-l-4 border-racing-blue relative">
-                                                    <div className="absolute top-2 right-2 opacity-10">
-                                                        <Activity className="w-8 h-8 text-racing-blue" />
+                                                    <div className="bg-slate-950 p-4 border-l-4 border-racing-blue relative">
+                                                        <div className="absolute top-2 right-2 opacity-10"><Activity className="w-8 h-8 text-racing-blue" /></div>
+                                                        <p className="text-xs text-slate-500 mb-1 font-racing">REST</p>
+                                                        <p className="text-3xl font-racing text-racing-blue">{ex.rest}S</p>
                                                     </div>
-                                                    <p className="text-xs text-slate-500 mb-1 font-racing tracking-wide">REST</p>
-                                                    <p className="text-3xl font-racing text-racing-blue tracking-wider">{ex.rest}S</p>
                                                 </div>
+                                                
+                                                <div className="grid grid-cols-2 gap-3">
+                                                    <button onClick={(e) => { e.stopPropagation(); handleShowSubstitutes(ex); }} className="bg-slate-800 border-2 border-racing-blue hover:border-racing-cyan py-3 font-racing text-sm text-racing-blue hover:text-racing-cyan transition-all flex items-center justify-center gap-2">
+                                                        <Shuffle className="w-4 h-4" />
+                                                        SWITCH
+                                                    </button>
+                                                    <button onClick={(e) => { e.stopPropagation(); handleQuickAdd(ex); }} className="relative overflow-hidden">
+                                                        <div className="absolute inset-0 red-metallic"></div>
+                                                        <div className="absolute inset-0 metallic-shine opacity-20"></div>
+                                                        <div className="relative py-3 font-racing text-sm text-white flex items-center justify-center gap-2">
+                                                            <Plus className="w-5 h-5" />
+                                                            LOG SET
+                                                        </div>
+                                                    </button>
+                                                </div>
+
+                                                {isCustom && (
+                                                    <button onClick={(e) => { e.stopPropagation(); resetExercise(ex.name); }} className="w-full py-2 text-xs font-racing text-slate-500 hover:text-racing-red transition-colors flex items-center justify-center gap-2">
+                                                        <RefreshCw className="w-3 h-3" />
+                                                        RESET TO: {ex.name}
+                                                    </button>
+                                                )}
                                             </div>
-                                            
-                                            <div className="grid grid-cols-2 gap-3">
-                                                <button 
-                                                    onClick={(e) => {
-                                                        e.stopPropagation();
-                                                        alert('Exercise substitution feature coming soon!');
-                                                    }}
-                                                    className="bg-slate-800 border-2 border-racing-blue hover:border-racing-cyan py-3 font-racing text-sm tracking-widest text-racing-blue hover:text-racing-cyan transition-all flex items-center justify-center gap-2"
-                                                >
-                                                    <Shuffle className="w-4 h-4" />
-                                                    SWITCH
-                                                </button>
-                                                <button 
-                                                    onClick={(e) => {
-                                                        e.stopPropagation();
-                                                        alert('Log workout feature coming soon!');
-                                                    }}
-                                                    className="relative overflow-hidden group"
-                                                >
-                                                    <div className="absolute inset-0 red-metallic"></div>
-                                                    <div className="absolute inset-0 metallic-shine opacity-20 group-hover:opacity-40 transition-opacity"></div>
-                                                    <div className="relative py-3 font-racing text-sm tracking-widest text-white flex items-center justify-center gap-2 shadow-lg">
-                                                        <Plus className="w-5 h-5" />
-                                                        LOG SET
-                                                    </div>
-                                                </button>
+                                        )}
+                                    </div>
+                                );
+                            })}
+                        </div>
+
+                        {recentWorkouts.length > 0 && (
+                            <div className="mt-8">
+                                <h2 className="text-xl font-racing mb-4 flex items-center gap-3">
+                                    <div className="w-8 h-1 red-metallic"></div>
+                                    RECENT ACTIVITY
+                                </h2>
+                                <div className="space-y-3">
+                                    {recentWorkouts.slice(0, 5).map((workout, idx) => (
+                                        <div key={idx} className="bg-slate-900 border-l-4 border-racing-red px-5 py-4 flex justify-between">
+                                            <div>
+                                                <p className="font-semibold text-white mb-1">{workout.exercise}</p>
+                                                <p className="text-sm text-slate-400 font-racing">{workout.weight}LBS × {workout.reps} REPS</p>
+                                            </div>
+                                            <div className="text-xs text-slate-600 font-racing">
+                                                {new Date(workout.timestamp).toLocaleDateString()}
                                             </div>
                                         </div>
-                                    )}
+                                    ))}
                                 </div>
-                            ))}
-                        </div>
+                            </div>
+                        )}
                     </main>
 
-                    <button 
-                        onClick={() => alert('Quick add feature coming soon!')}
-                        className="fixed bottom-24 right-6 w-16 h-16 rounded-full overflow-hidden shadow-2xl shadow-racing-red/50 hover:scale-110 active:scale-95 transition-transform z-50"
-                    >
+                    <button onClick={() => setShowAddModal(true)} className="fixed bottom-24 right-6 w-16 h-16 rounded-full shadow-2xl hover:scale-110 active:scale-95 transition-transform z-50 overflow-hidden">
                         <div className="absolute inset-0 red-metallic"></div>
                         <div className="absolute inset-0 metallic-shine opacity-30"></div>
                         <div className="relative flex items-center justify-center h-full">
-                            <Plus className="w-8 h-8 text-white drop-shadow-lg" />
+                            <Plus className="w-8 h-8 text-white" />
                         </div>
                     </button>
 
                     <nav className="fixed bottom-0 left-0 right-0 bg-slate-950 border-t-2 border-racing-red z-40">
                         <div className="h-1 racing-stripes"></div>
-                        <div className="max-w-7xl mx-auto flex justify-around p-4">
+                        <div className="flex justify-around p-4">
                             <button className="flex flex-col items-center gap-2">
                                 <div className="p-2 bg-racing-red/20 border border-racing-red rounded-lg">
                                     <Dumbbell className="w-6 h-6 text-racing-red" />
                                 </div>
-                                <span className="text-xs font-racing tracking-wide text-racing-red">WORKOUTS</span>
+                                <span className="text-xs font-racing text-racing-red">WORKOUTS</span>
                             </button>
-                            <button className="flex flex-col items-center gap-2 group">
-                                <div className="p-2 rounded-lg hover:bg-slate-800 transition-colors">
-                                    <BarChart className="w-6 h-6 text-slate-600 group-hover:text-slate-400" />
+                            <button className="flex flex-col items-center gap-2">
+                                <div className="p-2 rounded-lg">
+                                    <BarChart3 className="w-6 h-6 text-slate-600" />
                                 </div>
-                                <span className="text-xs font-racing tracking-wide text-slate-600 group-hover:text-slate-400">PROGRESS</span>
+                                <span className="text-xs font-racing text-slate-600">PROGRESS</span>
                             </button>
-                            <button className="flex flex-col items-center gap-2 group">
-                                <div className="p-2 rounded-lg hover:bg-slate-800 transition-colors">
-                                    <Calendar className="w-6 h-6 text-slate-600 group-hover:text-slate-400" />
+                            <button className="flex flex-col items-center gap-2">
+                                <div className="p-2 rounded-lg">
+                                    <Calendar className="w-6 h-6 text-slate-600" />
                                 </div>
-                                <span className="text-xs font-racing tracking-wide text-slate-600 group-hover:text-slate-400">HISTORY</span>
+                                <span className="text-xs font-racing text-slate-600">HISTORY</span>
                             </button>
                         </div>
                     </nav>
 
-                    {showSettings && (
-                        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-                            <div className="bg-slate-900 w-full max-w-md border-2 border-slate-700 shadow-2xl">
+                    {showSubstitutes && selectedExercise && (
+                        <div className="fixed inset-0 bg-black/90 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-fadeIn">
+                            <div className="bg-slate-900 w-full max-w-md max-h-[80vh] border-2 border-racing-blue shadow-2xl overflow-hidden flex flex-col">
                                 <div className="p-6 border-b-2 border-slate-800">
-                                    <div className="flex items-center justify-between">
-                                        <h2 className="text-2xl font-racing tracking-widest">SETTINGS</h2>
-                                        <button onClick={() => setShowSettings(false)} className="p-2 hover:bg-slate-800 rounded-lg">
+                                    <div className="flex items-center justify-between mb-3">
+                                        <h2 className="text-2xl font-racing text-white">SWITCH EXERCISE</h2>
+                                        <button onClick={() => setShowSubstitutes(false)} className="p-2 hover:bg-slate-800 rounded-lg">
                                             <X className="w-6 h-6 text-slate-400" />
                                         </button>
                                     </div>
+                                    <p className="text-sm text-slate-400">Alternatives for: <span className="font-semibold text-white">{selectedExercise.name}</span></p>
                                 </div>
-                                <div className="p-6">
-                                    <p className="text-slate-400 text-center py-8">
-                                        Advanced features (exercise substitution, workout logging, Google Sheets sync) coming in next update!
-                                    </p>
+
+                                <div className="flex-1 overflow-y-auto p-4 space-y-2">
+                                    {EXERCISE_SUBS[selectedExercise.name]?.map((alt, idx) => (
+                                        <button key={idx} onClick={() => substituteExercise(selectedExercise.name, alt.name)} className="w-full text-left bg-slate-800 hover:bg-slate-750 border border-slate-700 hover:border-racing-blue p-4 transition-all group">
+                                            <div className="flex items-start justify-between gap-3">
+                                                <div className="flex-1">
+                                                    <p className="font-semibold text-white mb-1 group-hover:text-racing-blue">{alt.name}</p>
+                                                    <div className="flex gap-3 text-xs">
+                                                        <span className="px-2 py-0.5 bg-slate-900 text-slate-400 font-racing">{alt.difficulty}</span>
+                                                        <span className="px-2 py-0.5 bg-slate-900 text-slate-400 font-racing">{alt.equipment}</span>
+                                                    </div>
+                                                </div>
+                                                <ChevronRight className="w-5 h-5 text-slate-600 group-hover:text-racing-blue flex-shrink-0" />
+                                            </div>
+                                        </button>
+                                    )) || <div className="text-center py-8 text-slate-500"><p className="font-racing">No alternatives available</p></div>}
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {showAddModal && (
+                        <div className="fixed inset-0 bg-black/90 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-fadeIn">
+                            <div className="bg-slate-900 w-full max-w-md border-2 border-racing-red shadow-2xl">
+                                <div className="p-6 border-b-2 border-slate-800">
+                                    <div className="flex items-center justify-between mb-3">
+                                        <h2 className="text-3xl font-racing text-white">LOG SET</h2>
+                                        <button onClick={() => setShowAddModal(false)} className="p-2 hover:bg-slate-800 rounded-lg">
+                                            <X className="w-7 h-7 text-slate-400" />
+                                        </button>
+                                    </div>
+                                    {currentExercise && <p className="text-sm text-slate-400">{getDisplayExercise(currentExercise.name)}</p>}
+                                </div>
+
+                                <form onSubmit={handleSubmitWorkout} className="p-6 space-y-6">
+                                    <div className="grid grid-cols-2 gap-5">
+                                        <div>
+                                            <label className="block text-xs font-racing mb-3 text-slate-400">WEIGHT (LBS)</label>
+                                            <input type="number" step="0.5" value={weight} onChange={(e) => setWeight(e.target.value)} className="w-full bg-slate-950 border-2 border-slate-700 px-4 py-4 text-2xl font-racing text-white focus:border-racing-red outline-none" placeholder="135" autoFocus />
+                                        </div>
+                                        <div>
+                                            <label className="block text-xs font-racing mb-3 text-slate-400">REPS</label>
+                                            <input type="number" value={reps} onChange={(e) => setReps(e.target.value)} className="w-full bg-slate-950 border-2 border-slate-700 px-4 py-4 text-2xl font-racing text-white focus:border-racing-red outline-none" placeholder="10" />
+                                        </div>
+                                    </div>
+
+                                    <div>
+                                        <label className="block text-xs font-racing mb-3 text-slate-400">NOTES (OPTIONAL)</label>
+                                        <textarea value={notes} onChange={(e) => setNotes(e.target.value)} className="w-full bg-slate-950 border-2 border-slate-700 px-4 py-3 text-white focus:border-racing-red outline-none resize-none" placeholder="Felt strong..." rows={3} />
+                                    </div>
+
+                                    <button type="submit" className="w-full relative overflow-hidden">
+                                        <div className="absolute inset-0 red-metallic"></div>
+                                        <div className="absolute inset-0 metallic-shine opacity-30"></div>
+                                        <div className="relative py-5 font-racing text-2xl text-white flex items-center justify-center gap-3">
+                                            <Check className="w-7 h-7" />
+                                            SAVE WORKOUT
+                                        </div>
+                                    </button>
+                                </form>
+                            </div>
+                        </div>
+                    )}
+
+                    {showSettings && (
+                        <div className="fixed inset-0 bg-black/90 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-fadeIn">
+                            <div className="bg-slate-900 w-full max-w-md border-2 border-slate-700 shadow-2xl">
+                                <div className="p-6 border-b-2 border-slate-800">
+                                    <div className="flex items-center justify-between">
+                                        <h2 className="text-3xl font-racing text-white">SETTINGS</h2>
+                                        <button onClick={() => setShowSettings(false)} className="p-2 hover:bg-slate-800 rounded-lg">
+                                            <X className="w-7 h-7 text-slate-400" />
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <div className="p-6 space-y-6">
+                                    <div>
+                                        <label className="block text-xs font-racing mb-3 text-slate-400">GOOGLE SHEETS URL</label>
+                                        <input type="text" value={gSheetUrl} onChange={(e) => setGSheetUrl(e.target.value)} className="w-full bg-slate-950 border-2 border-slate-700 px-4 py-3 text-white focus:border-racing-blue outline-none text-sm" placeholder="https://script.google.com/macros/s/..." />
+                                        <p className="text-xs text-slate-500 mt-2">Paste your Apps Script Web App URL</p>
+                                    </div>
+
+                                    <div className="bg-racing-red/10 border-l-4 border-racing-red p-4">
+                                        <h3 className="font-racing text-sm mb-2 text-racing-red">SETUP REQUIRED</h3>
+                                        <ol className="text-xs text-slate-400 space-y-1.5 list-decimal list-inside">
+                                            <li>Create a Google Sheet</li>
+                                            <li>Extensions → Apps Script</li>
+                                            <li>Deploy as Web App</li>
+                                            <li>Copy & paste URL above</li>
+                                        </ol>
+                                    </div>
+
+                                    <button onClick={saveSettings} className="w-full relative overflow-hidden">
+                                        <div className="absolute inset-0 bg-slate-800"></div>
+                                        <div className="relative py-4 font-racing text-xl text-white">SAVE SETTINGS</div>
+                                    </button>
                                 </div>
                             </div>
                         </div>
