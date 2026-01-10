@@ -1,0 +1,32 @@
+{
+  "name": "gymflow-workout-tracker",
+  "version": "1.0.0",
+  "description": "Premium workout tracking app with Google Sheets integration",
+  "main": "index.html",
+  "scripts": {
+    "start": "npx http-server -p 8080 -o",
+    "deploy": "gh-pages -d ."
+  },
+  "keywords": [
+    "workout",
+    "fitness",
+    "tracker",
+    "google-sheets",
+    "pwa",
+    "react"
+  ],
+  "author": "Your Name",
+  "license": "MIT",
+  "devDependencies": {
+    "gh-pages": "^6.0.0",
+    "http-server": "^14.1.1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/yourusername/workout-tracker.git"
+  },
+  "bugs": {
+    "url": "https://github.com/yourusername/workout-tracker/issues"
+  },
+  "homepage": "https://yourusername.github.io/workout-tracker/"
+}
