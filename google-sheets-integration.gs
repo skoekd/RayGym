@@ -1,4 +1,4 @@
-// Google Apps Script Web App
+// Google Apps Script Web App (RayGym)
 //
 // Purpose
 // - Append workouts from the app into an existing training log Google Sheet
@@ -10,7 +10,21 @@
 // 3) Deploy → New deployment → Web app
 //    - Execute as: Me
 //    - Who has access: Anyone
-// 4) Copy the Web app URL and paste it into the app Settings
+// 4) Copy the Web app URL (ends with /exec) and paste it into the app Settings
+//
+// Notes
+// - GitHub Pages / mobile browsers can block cross-origin POSTs (CORS). This script supports JSONP
+//   so the app can call it via GET with a callback.
+
+function respond_(obj, callback) {
+  const json = JSON.stringify(obj);
+  if (callback) {
+    return ContentService.createTextOutput(`${callback}(${json});`)
+      .setMimeType(ContentService.MimeType.JAVASCRIPT);
+  }
+  return ContentService.createTextOutput(json)
+    .setMimeType(ContentService.MimeType.JSON);
+}
 
 function doPost(e) {
   try {
@@ -19,28 +33,48 @@ function doPost(e) {
 
     if (data.action === 'append_workout') {
       const result = appendWorkout_(data);
-      return json_(result);
+      return respond_(result, null);
     }
 
-    return json_({ success: false, error: 'Unknown action' });
+    return respond_({ success: false, error: 'Unknown action' }, null);
   } catch (err) {
-    return json_({ success: false, error: String(err) });
+    return respond_({ success: false, error: String(err) }, null);
   }
 }
 
 function doGet(e) {
   try {
-    const action = (e && e.parameter && e.parameter.action) ? String(e.parameter.action) : '';
-    if (action === 'history') {
-      const spreadsheetId = String(e.parameter.spreadsheetId || '');
-      if (!spreadsheetId) return json_({ success: false, error: 'Missing spreadsheetId' });
-      const items = buildHistory_(spreadsheetId);
-      return json_({ success: true, items });
+    const params = (e && e.parameter) ? e.parameter : {};
+    const action = String(params.action || 'ping');
+    const callback = params.callback ? String(params.callback) : '';
+
+    if (action === 'ping') {
+      return respond_({ success: true, message: 'OK' }, callback);
     }
 
-    return json_({ success: false, error: 'Unknown action' });
+    if (action === 'history') {
+      const spreadsheetId = String(params.spreadsheetId || '');
+      if (!spreadsheetId) return respond_({ success: false, error: 'Missing spreadsheetId' }, callback);
+      const items = buildHistory_(spreadsheetId);
+      return respond_({ success: true, items }, callback);
+    }
+
+    // JSONP append (used by the app to avoid CORS)
+    if (action === 'append_workout') {
+      const spreadsheetId = String(params.spreadsheetId || '');
+      const payloadStr = String(params.payload || '');
+      if (!spreadsheetId) return respond_({ success: false, error: 'Missing spreadsheetId' }, callback);
+      if (!payloadStr) return respond_({ success: false, error: 'Missing payload' }, callback);
+
+      const payload = JSON.parse(decodeURIComponent(payloadStr));
+      const result = appendWorkout_({ ...payload, spreadsheetId });
+      return respond_(result, callback);
+    }
+
+    return respond_({ success: false, error: 'Unknown action' }, callback);
   } catch (err) {
-    return json_({ success: false, error: String(err) });
+    const cb = (e && e.parameter && e.parameter.callback) ? String(e.parameter.callback) : '';
+    return respond_({ success: false, error: String(err) }, cb);
   }
 }
 

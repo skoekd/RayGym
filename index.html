@@ -148,6 +148,67 @@
                 return m ? m[1] : '';
             };
 
+// JSONP helper to call Apps Script Web App from GitHub Pages / mobile Safari without CORS issues
+const jsonpRequest = (baseUrl, params) => {
+    return new Promise((resolve, reject) => {
+        try {
+            const cb = `raygym_cb_${Math.random().toString(36).slice(2)}`;
+            const url = new URL(baseUrl);
+            Object.entries(params || {}).forEach(([k, v]) => url.searchParams.set(k, String(v)));
+            url.searchParams.set('callback', cb);
+
+            const script = document.createElement('script');
+            window[cb] = (data) => {
+                resolve(data);
+                try { delete window[cb]; } catch (_) { window[cb] = undefined; }
+                script.remove();
+            };
+            script.onerror = () => {
+                reject(new Error('JSONP request failed'));
+                try { delete window[cb]; } catch (_) { window[cb] = undefined; }
+                script.remove();
+            };
+            script.src = url.toString();
+            document.body.appendChild(script);
+        } catch (err) {
+            reject(err);
+        }
+    });
+};
+
+const rowsToHistoryItems = (rows) => {
+    if (!Array.isArray(rows)) return [];
+    const startIdx = (rows[0] && String(rows[0][0]).toLowerCase().includes('timestamp')) ? 1 : 0;
+    const items = [];
+    for (let i = startIdx; i < rows.length; i++) {
+        const r = rows[i] || [];
+        const timestamp = r[0];
+        const date = r[1];
+        const workoutName = r[2];
+        const exercisesJson = r[3];
+        let exercises = [];
+        try { exercises = JSON.parse(exercisesJson || '[]'); } catch (_) { exercises = []; }
+
+        const normalizedExercises = (Array.isArray(exercises) ? exercises : []).map((ex) => {
+            const setsObj = ex?.sets || {};
+            const setsLogged = setsObj ? Object.keys(setsObj).length : 0;
+            return { name: ex?.name || ex?.originalName || 'Exercise', setsLogged };
+        });
+
+        const totalSets = normalizedExercises.reduce((sum, ex) => sum + (ex.setsLogged || 0), 0);
+
+        items.push({
+            timestamp: timestamp || '',
+            date: date || '',
+            workoutName: workoutName || 'Workout',
+            programName: workoutName || 'Workout',
+            totalSets,
+            exercises: normalizedExercises
+        });
+    }
+    return items;
+};
+
             const getTargetSets = (exerciseId, fallbackProgramSets) => {
                 // Requirement: default to 4 sets, user can adjust +/-
                 const saved = exerciseTargetSets?.[exerciseId];
@@ -252,29 +313,33 @@
 
                 // Save to Google Sheets via Apps Script Web App
                 try {
-                    const res = await fetch(scriptUrl, {
-                        method: 'POST',
-                        mode: 'cors',
-                        // Use text/plain to avoid CORS preflight issues in Apps Script
-                        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-                        body: JSON.stringify({ action: 'append_workout', ...workoutData })
-                    });
 
-                    const text = await res.text();
-                    let payload = null;
-                    try { payload = JSON.parse(text); } catch (_) {}
+// Use JSONP to avoid CORS blocks on GitHub Pages / mobile browsers
+const payload = encodeURIComponent(JSON.stringify({
+    timestamp: workoutData.timestamp,
+    date: workoutData.date,
+    program: workoutData.program,
+    workoutName: workoutData.workoutName,
+    exercises: workoutData.exercises
+}));
 
-                    if (!res.ok || !payload || payload.success !== true) {
-                        const msg = payload?.error || payload?.message || `Save failed (HTTP ${res.status})`;
-                        showToast('error', msg);
-                        return;
-                    }
+const resp = await jsonpRequest(scriptUrl, {
+    action: 'append_workout',
+    spreadsheetId: workoutData.spreadsheetId,
+    payload
+});
 
-                    showToast('success', 'Saved to Google Sheets.');
-                    clearWorkout();
-                    setShowWorkoutSummary(false);
-                    // Refresh history in the background (best effort)
-                    loadHistoryFromSheets();
+if (!resp || (resp.ok !== true && resp.success !== true)) {
+    const msg = resp?.error || resp?.message || 'Save failed.';
+    showToast('error', msg);
+    return;
+}
+
+showToast('success', 'Saved to Google Sheets.');
+clearWorkout();
+setShowWorkoutSummary(false);
+// Refresh history in the background (best effort)
+loadHistoryFromSheets();
                 } catch (error) {
                     console.error('Google Sheets save failed:', error);
                     showToast('error', 'Save failed. Check your network and Apps Script deployment settings.');
@@ -294,23 +359,21 @@
 
                 setHistoryStatus({ loading: true, error: '' });
                 try {
-                    const url = new URL(scriptUrl);
-                    url.searchParams.set('action', 'history');
-                    url.searchParams.set('spreadsheetId', spreadsheetId);
-                    const res = await fetch(url.toString(), { method: 'GET', mode: 'cors' });
-                    const text = await res.text();
-                    let payload = null;
-                    try { payload = JSON.parse(text); } catch (_) {}
 
-                    if (!res.ok || !payload || payload.success !== true) {
-                        const msg = payload?.error || payload?.message || `History load failed (HTTP ${res.status})`;
-                        setHistoryStatus({ loading: false, error: msg });
-                        return;
-                    }
+const resp = await jsonpRequest(scriptUrl, {
+    action: 'history',
+    spreadsheetId
+});
 
-                    const items = Array.isArray(payload.items) ? payload.items : [];
-                    setHistoryItems(items);
-                    setHistoryStatus({ loading: false, error: '' });
+if (!resp || (resp.ok !== true && resp.success !== true)) {
+    const msg = resp?.error || resp?.message || 'History load failed.';
+    setHistoryStatus({ loading: false, error: msg });
+    return;
+}
+
+const items = Array.isArray(resp.items) ? resp.items : rowsToHistoryItems(resp.rows);
+setHistoryItems(items);
+setHistoryStatus({ loading: false, error: '' });
                 } catch (err) {
                     console.error('History load failed:', err);
                     setHistoryStatus({ loading: false, error: 'History load failed. Check your network and Apps Script settings.' });
@@ -781,29 +844,23 @@
                                                         return;
                                                     }
                                                     try {
-                                                        const res = await fetch(scriptUrl, {
-                                                            method: 'POST',
-                                                            mode: 'cors',
-                                                            headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-                                                            body: JSON.stringify({
-                                                                action: 'append_workout',
-                                                                spreadsheetId,
-                                                                spreadsheetUrl: sheetUrl,
-                                                                timestamp: new Date().toISOString(),
-                                                                program: activeTab,
-                                                                workoutName: 'Test Save',
-                                                                exercises: []
-                                                            })
-                                                        });
-                                                        const t = await res.text();
-                                                        let p = null;
-                                                        try { p = JSON.parse(t); } catch (_) {}
-                                                        if (!res.ok || !p || p.success !== true) {
-                                                            showToast('error', p?.error || p?.message || `Test failed (HTTP ${res.status})`);
-                                                            return;
-                                                        }
-                                                        showToast('success', 'Test save succeeded.');
-                                                    } catch (e) {
+                                                        
+const payload = encodeURIComponent(JSON.stringify({
+    timestamp: new Date().toISOString(),
+    program: activeTab,
+    workoutName: 'Test Save',
+    exercises: []
+}));
+const resp = await jsonpRequest(scriptUrl, {
+    action: 'append_workout',
+    spreadsheetId,
+    payload
+});
+if (!resp || (resp.ok !== true && resp.success !== true)) {
+    showToast('error', resp?.error || resp?.message || 'Test save failed.');
+    return;
+}
+showToast('success', 'Test save succeeded.');} catch (e) {
                                                         console.error(e);
                                                         showToast('error', 'Test save failed. Check deployment permissions.');
                                                     }
