@@ -48,6 +48,7 @@
 
         const Dumbbell = ({ className }) => <Icon className={className}><path d="M14.4 14.4 9.6 9.6"/><path d="M18.657 21.485a2 2 0 1 1-2.829-2.828l-1.767 1.768a2 2 0 1 1-2.829-2.829l6.364-6.364a2 2 0 1 1 2.829 2.829l-1.768 1.767a2 2 0 1 1 2.828 2.829z"/><path d="m21.5 21.5-1.4-1.4"/><path d="M3.9 3.9 2.5 2.5"/><path d="M6.404 12.768a2 2 0 1 1-2.829-2.829l1.768-1.767a2 2 0 1 1-2.828-2.829l2.828-2.828a2 2 0 1 1 2.829 2.828l1.767-1.768a2 2 0 1 1 2.829 2.829z"/></Icon>;
         const Plus = ({ className }) => <Icon className={className}><path d="M5 12h14"/><path d="M12 5v14"/></Icon>;
+        const Minus = ({ className }) => <Icon className={className}><path d="M5 12h14"/></Icon>;
         const X = ({ className }) => <Icon className={className}><path d="M18 6 6 18"/><path d="m6 6 12 12"/></Icon>;
         const Settings = ({ className }) => <Icon className={className}><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></Icon>;
         const ChevronDown = ({ className }) => <Icon className={className}><path d="m6 9 6 6 6-6"/></Icon>;
@@ -68,10 +69,24 @@
             const [showSubstitutes, setShowSubstitutes] = useState(false);
             const [showWorkoutSummary, setShowWorkoutSummary] = useState(false);
             const [selectedExercise, setSelectedExercise] = useState(null);
-            const [gSheetUrl, setGSheetUrl] = useState(localStorage.getItem('gSheetUrl') || '');
+            // Google Sheets integration
+            // sheetUrl: the user's Google Sheet link
+            // scriptUrl: the user's deployed Apps Script Web App URL
+            const [sheetUrl, setSheetUrl] = useState(localStorage.getItem('sheetUrl') || '');
+            const [scriptUrl, setScriptUrl] = useState(localStorage.getItem('scriptUrl') || '');
             const [expandedExercise, setExpandedExercise] = useState(null);
+            const [activeView, setActiveView] = useState('workout'); // workout | history
+            const [historyItems, setHistoryItems] = useState([]);
+            const [historyStatus, setHistoryStatus] = useState({ loading: false, error: '' });
+            const [toast, setToast] = useState(null); // { type: 'success'|'error'|'info', message: string }
             const [customExercises, setCustomExercises] = useState(() => {
                 const saved = localStorage.getItem('customExercises');
+                return saved ? JSON.parse(saved) : {};
+            });
+
+            // Per-exercise target set count (default 4), persisted
+            const [exerciseTargetSets, setExerciseTargetSets] = useState(() => {
+                const saved = localStorage.getItem('exerciseTargetSets');
                 return saved ? JSON.parse(saved) : {};
             });
             
@@ -84,7 +99,6 @@
             const programs = {
                 push: {
                     name: 'Push',
-                    icon: '💪',
                     exercises: [
                         { id: 'push-1', name: 'Dumbbell Incline Chest Press', sets: 2, reps: '8-10, 15', rest: 90 },
                         { id: 'push-2', name: 'Machine Chest Press', sets: 3, reps: '10-12', rest: 90 },
@@ -94,7 +108,6 @@
                 },
                 pull: {
                     name: 'Pull',
-                    icon: '🔙',
                     exercises: [
                         { id: 'pull-1', name: 'T-Bar Row', sets: 3, reps: '10-12', rest: 90 },
                         { id: 'pull-2', name: 'Lat Pulldown', sets: 3, reps: '8-10, 10-12', rest: 60 },
@@ -104,7 +117,6 @@
                 },
                 legs: {
                     name: 'Legs',
-                    icon: '🦵',
                     exercises: [
                         { id: 'legs-1', name: 'Seated Hamstring Curl', sets: 4, reps: '15/12/12/8', rest: 90 },
                         { id: 'legs-2', name: 'Bulgarian Split Squat', sets: 3, reps: '8-12/side', rest: 60 },
@@ -114,7 +126,6 @@
                 },
                 shoulders: {
                     name: 'Shoulders',
-                    icon: '💪',
                     exercises: [
                         { id: 'shoulders-1', name: 'Seated Shoulder Press', sets: 3, reps: '10/15/15', rest: 60 },
                         { id: 'shoulders-2', name: 'Dumbbell Side Lateral Raise', sets: 4, reps: '10-12', rest: 60 },
@@ -123,6 +134,26 @@
                         { id: 'shoulders-5', name: 'Low Pulley Cable Curl', sets: 3, reps: '10-12', rest: 60 }
                     ]
                 }
+            };
+
+            const showToast = (type, message) => {
+                setToast({ type, message });
+                window.clearTimeout(window.__toastTimer);
+                window.__toastTimer = window.setTimeout(() => setToast(null), 3500);
+            };
+
+            const extractSpreadsheetId = (url) => {
+                if (!url) return '';
+                const m = url.match(/\/d\/([a-zA-Z0-9-_]+)/);
+                return m ? m[1] : '';
+            };
+
+            const getTargetSets = (exerciseId, fallbackProgramSets) => {
+                // Requirement: default to 4 sets, user can adjust +/-
+                const saved = exerciseTargetSets?.[exerciseId];
+                if (typeof saved === 'number' && !Number.isNaN(saved)) return saved;
+                // If no saved value, default to 4 (ignore program default as requested)
+                return 4;
             };
 
             const getDisplayExercise = (originalName) => customExercises[originalName] || originalName;
@@ -146,9 +177,34 @@
                 if (!updated[exerciseId]) {
                     updated[exerciseId] = { sets: {} };
                 }
-                updated[exerciseId].sets[setNumber] = { weight: parseFloat(weight), reps: parseInt(reps) };
+                const w = weight === '' ? '' : Number(weight);
+                const r = reps === '' ? '' : Number(reps);
+                updated[exerciseId].sets[setNumber] = {
+                    weight: w === '' ? '' : (Number.isFinite(w) ? w : ''),
+                    reps: r === '' ? '' : (Number.isFinite(r) ? Math.trunc(r) : '')
+                };
                 setCurrentWorkout(updated);
                 localStorage.setItem('currentWorkout', JSON.stringify(updated));
+            };
+
+            const adjustTargetSets = (exerciseId, nextCount) => {
+                const safe = Math.max(1, Math.min(12, nextCount));
+                const updatedTargets = { ...exerciseTargetSets, [exerciseId]: safe };
+                setExerciseTargetSets(updatedTargets);
+                localStorage.setItem('exerciseTargetSets', JSON.stringify(updatedTargets));
+
+                // If user reduced sets, prune logged sets above the new max
+                if (currentWorkout?.[exerciseId]?.sets) {
+                    const updatedWorkout = { ...currentWorkout };
+                    const sets = { ...updatedWorkout[exerciseId].sets };
+                    Object.keys(sets).forEach((k) => {
+                        const n = Number(k);
+                        if (n > safe) delete sets[k];
+                    });
+                    updatedWorkout[exerciseId] = { ...updatedWorkout[exerciseId], sets };
+                    setCurrentWorkout(updatedWorkout);
+                    localStorage.setItem('currentWorkout', JSON.stringify(updatedWorkout));
+                }
             };
 
             const clearWorkout = () => {
@@ -157,41 +213,72 @@
             };
 
             const saveWorkout = async () => {
+                const timestamp = new Date().toISOString();
                 const workoutData = {
-                    date: new Date().toISOString(),
+                    timestamp,
                     program: activeTab,
-                    exercises: Object.keys(currentWorkout).map(exerciseId => {
-                        const exercise = programs[activeTab].exercises.find(e => e.id === exerciseId);
-                        return {
-                            name: getDisplayExercise(exercise.name),
-                            originalName: exercise.name,
-                            sets: currentWorkout[exerciseId].sets
-                        };
-                    })
+                    workoutName: programs[activeTab]?.name || activeTab,
+                    spreadsheetId: extractSpreadsheetId(sheetUrl),
+                    spreadsheetUrl: sheetUrl,
+                    exercises: Object.keys(currentWorkout)
+                        .map(exerciseId => {
+                            const exercise = programs[activeTab].exercises.find(e => e.id === exerciseId);
+                            const targetSets = getTargetSets(exerciseId, exercise?.sets);
+                            return {
+                                exerciseId,
+                                name: getDisplayExercise(exercise.name),
+                                originalName: exercise.name,
+                                targetSets,
+                                sets: currentWorkout[exerciseId].sets
+                            };
+                        })
+                        .filter(Boolean)
                 };
 
-                // Save to localStorage history
+                // Local backup (offline-first). Sheet is the source of truth for History when configured.
                 const history = JSON.parse(localStorage.getItem('workoutHistory') || '[]');
                 history.unshift(workoutData);
-                localStorage.setItem('workoutHistory', JSON.stringify(history.slice(0, 50)));
+                localStorage.setItem('workoutHistory', JSON.stringify(history.slice(0, 100)));
 
-                // Try to save to Google Sheets
-                if (gSheetUrl) {
-                    try {
-                        await fetch(gSheetUrl, {
-                            method: 'POST',
-                            mode: 'no-cors',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify(workoutData)
-                        });
-                    } catch (error) {
-                        console.error('Google Sheets sync failed:', error);
-                    }
+                // Validate settings
+                if (!sheetUrl || !scriptUrl) {
+                    showToast('error', 'Missing Google Sheets settings. Open Settings to connect your sheet.');
+                    return;
+                }
+                if (!workoutData.spreadsheetId) {
+                    showToast('error', 'Invalid Google Sheet URL. Please paste a full Google Sheet link.');
+                    return;
                 }
 
-                clearWorkout();
-                setShowWorkoutSummary(false);
-                alert('✅ Workout saved successfully!');
+                // Save to Google Sheets via Apps Script Web App
+                try {
+                    const res = await fetch(scriptUrl, {
+                        method: 'POST',
+                        mode: 'cors',
+                        // Use text/plain to avoid CORS preflight issues in Apps Script
+                        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                        body: JSON.stringify({ action: 'append_workout', ...workoutData })
+                    });
+
+                    const text = await res.text();
+                    let payload = null;
+                    try { payload = JSON.parse(text); } catch (_) {}
+
+                    if (!res.ok || !payload || payload.success !== true) {
+                        const msg = payload?.error || payload?.message || `Save failed (HTTP ${res.status})`;
+                        showToast('error', msg);
+                        return;
+                    }
+
+                    showToast('success', 'Saved to Google Sheets.');
+                    clearWorkout();
+                    setShowWorkoutSummary(false);
+                    // Refresh history in the background (best effort)
+                    loadHistoryFromSheets();
+                } catch (error) {
+                    console.error('Google Sheets save failed:', error);
+                    showToast('error', 'Save failed. Check your network and Apps Script deployment settings.');
+                }
             };
 
             const getTotalSetsLogged = () => {
@@ -200,13 +287,61 @@
                 }, 0);
             };
 
+            const loadHistoryFromSheets = async () => {
+                if (!sheetUrl || !scriptUrl) return;
+                const spreadsheetId = extractSpreadsheetId(sheetUrl);
+                if (!spreadsheetId) return;
+
+                setHistoryStatus({ loading: true, error: '' });
+                try {
+                    const url = new URL(scriptUrl);
+                    url.searchParams.set('action', 'history');
+                    url.searchParams.set('spreadsheetId', spreadsheetId);
+                    const res = await fetch(url.toString(), { method: 'GET', mode: 'cors' });
+                    const text = await res.text();
+                    let payload = null;
+                    try { payload = JSON.parse(text); } catch (_) {}
+
+                    if (!res.ok || !payload || payload.success !== true) {
+                        const msg = payload?.error || payload?.message || `History load failed (HTTP ${res.status})`;
+                        setHistoryStatus({ loading: false, error: msg });
+                        return;
+                    }
+
+                    const items = Array.isArray(payload.items) ? payload.items : [];
+                    setHistoryItems(items);
+                    setHistoryStatus({ loading: false, error: '' });
+                } catch (err) {
+                    console.error('History load failed:', err);
+                    setHistoryStatus({ loading: false, error: 'History load failed. Check your network and Apps Script settings.' });
+                }
+            };
+
             useEffect(() => {
                 localStorage.setItem('currentWorkout', JSON.stringify(currentWorkout));
             }, [currentWorkout]);
 
+            useEffect(() => {
+                // Load history whenever the connected sheet changes
+                loadHistoryFromSheets();
+            }, [sheetUrl, scriptUrl]);
+
             return (
                 <div className="min-h-screen pb-32">
                     <div className="h-1 racing-stripes"></div>
+
+                    {toast && (
+                        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[60] w-[min(640px,calc(100%-2rem))]">
+                            <div className={`px-4 py-3 rounded-lg border shadow-2xl backdrop-blur-sm ${toast.type === 'success' ? 'bg-emerald-950/80 border-emerald-600 text-emerald-100' : toast.type === 'error' ? 'bg-red-950/80 border-red-600 text-red-100' : 'bg-slate-900/80 border-slate-600 text-slate-100'}`}>
+                                <div className="flex items-start justify-between gap-4">
+                                    <p className="text-sm leading-5">{toast.message}</p>
+                                    <button onClick={() => setToast(null)} className="p-1 hover:bg-white/5 rounded" aria-label="Dismiss">
+                                        <X className="w-4 h-4" />
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
 
                     <header className="bg-slate-900 border-b-2 border-racing-red">
                         <div className="p-6 max-w-7xl mx-auto">
@@ -225,6 +360,24 @@
                                     </div>
                                 </div>
                                 <div className="flex items-center gap-3">
+                                    <div className="flex items-center bg-slate-950 border border-slate-700 rounded-lg overflow-hidden">
+                                        <button
+                                            onClick={() => setActiveView('workout')}
+                                            className={`px-3 py-2 flex items-center gap-2 transition-all ${activeView === 'workout' ? 'bg-slate-800 text-white' : 'text-slate-400 hover:bg-slate-900'}`}
+                                            aria-label="Workout view"
+                                        >
+                                            <Dumbbell className="w-4 h-4" />
+                                            <span className="font-racing text-sm">WORKOUT</span>
+                                        </button>
+                                        <button
+                                            onClick={() => setActiveView('history')}
+                                            className={`px-3 py-2 flex items-center gap-2 transition-all ${activeView === 'history' ? 'bg-slate-800 text-white' : 'text-slate-400 hover:bg-slate-900'}`}
+                                            aria-label="History view"
+                                        >
+                                            <Calendar className="w-4 h-4" />
+                                            <span className="font-racing text-sm">HISTORY</span>
+                                        </button>
+                                    </div>
                                     {getTotalSetsLogged() > 0 && (
                                         <button onClick={() => setShowWorkoutSummary(true)} className="px-4 py-2 bg-racing-red hover:bg-red-600 rounded-lg transition-all flex items-center gap-2">
                                             <Save className="w-4 h-4" />
@@ -240,161 +393,228 @@
                     </header>
 
                     <main className="max-w-7xl mx-auto p-6">
-                        <div className="flex gap-3 mb-6 overflow-x-auto scrollbar-hide pb-2">
-                            {Object.entries(programs).map(([key, program]) => (
-                                <button
-                                    key={key}
-                                    onClick={() => setActiveTab(key)}
-                                    className={`flex-shrink-0 px-6 py-3 font-racing text-lg tracking-wider transition-all ${
-                                        activeTab === key ? 'bg-racing-red text-white scale-105' : 'bg-slate-800 text-slate-400'
-                                    }`}
-                                    style={{ clipPath: 'polygon(8% 0%, 100% 0%, 92% 100%, 0% 100%)' }}
-                                >
-                                    {program.icon} {program.name}
-                                </button>
-                            ))}
-                        </div>
-
-                        <div className="space-y-4">
-                            {programs[activeTab].exercises.map((ex) => {
-                                const displayName = getDisplayExercise(ex.name);
-                                const isCustom = displayName !== ex.name;
-                                const exerciseData = currentWorkout[ex.id];
-                                
-                                return (
-                                    <div key={ex.id} className="bg-slate-900 border-2 border-slate-800 hover:border-racing-red transition-all" style={{ clipPath: 'polygon(0 0, 100% 0, 100% calc(100% - 12px), calc(100% - 12px) 100%, 0 100%)' }}>
-                                        <button onClick={() => setExpandedExercise(expandedExercise === ex.id ? null : ex.id)} className="w-full p-6 flex items-center justify-between text-left">
-                                            <div className="flex-1">
-                                                <div className="flex items-center gap-2 mb-2">
-                                                    <h3 className="font-bold text-lg text-white">{displayName}</h3>
-                                                    {isCustom && <span className="px-2 py-0.5 bg-racing-blue/20 border border-racing-blue text-racing-blue text-xs font-racing">ALT</span>}
-                                                    {exerciseData && Object.keys(exerciseData.sets).length > 0 && (
-                                                        <span className="px-2 py-0.5 bg-racing-red/20 border border-racing-red text-racing-red text-xs font-racing">
-                                                            {Object.keys(exerciseData.sets).length}/{ex.sets} LOGGED
-                                                        </span>
-                                                    )}
-                                                </div>
-                                                <div className="flex gap-5 text-sm">
-                                                    <span className="flex items-center gap-2 text-slate-400">
-                                                        <div className="w-2 h-2 rounded-full bg-racing-red gauge-indicator"></div>
-                                                        <span className="font-racing">{ex.sets} SETS</span>
-                                                    </span>
-                                                    <span className="flex items-center gap-2 text-slate-400">
-                                                        <div className="w-2 h-2 rounded-full bg-racing-blue gauge-indicator" style={{animationDelay: '0.3s'}}></div>
-                                                        <span className="font-racing">{ex.reps} REPS</span>
-                                                    </span>
-                                                    <span className="flex items-center gap-2 text-slate-400">
-                                                        <div className="w-2 h-2 rounded-full bg-racing-cyan gauge-indicator" style={{animationDelay: '0.6s'}}></div>
-                                                        <span className="font-racing">{ex.rest}S</span>
-                                                    </span>
-                                                </div>
-                                            </div>
-                                            <ChevronDown className={`w-6 h-6 text-slate-500 transition-transform ${expandedExercise === ex.id ? 'rotate-180 text-racing-red' : ''}`} />
+                        {activeView === 'workout' ? (
+                            <>
+                                <div className="flex gap-3 mb-6 overflow-x-auto scrollbar-hide pb-2">
+                                    {Object.entries(programs).map(([key, program]) => (
+                                        <button
+                                            key={key}
+                                            onClick={() => setActiveTab(key)}
+                                            className={`flex-shrink-0 px-6 py-3 font-racing text-lg tracking-wider transition-all ${
+                                                activeTab === key ? 'bg-racing-red text-white scale-105' : 'bg-slate-800 text-slate-400'
+                                            }`}
+                                            style={{ clipPath: 'polygon(8% 0%, 100% 0%, 92% 100%, 0% 100%)' }}
+                                        >
+                                            {program.name}
                                         </button>
+                                    ))}
+                                </div>
 
-                                        {expandedExercise === ex.id && (
-                                            <div className="px-6 pb-6 border-t-2 border-slate-800 pt-5 space-y-4">
-                                                {/* Per-Set Tracking */}
-                                                <div className="space-y-2">
-                                                    {[...Array(ex.sets)].map((_, setIdx) => {
-                                                        const setNum = setIdx + 1;
-                                                        const setData = exerciseData?.sets?.[setNum];
-                                                        
-                                                        return (
-                                                            <div key={setNum} className="bg-slate-950 p-4 rounded border border-slate-800">
-                                                                <div className="flex items-center gap-4">
-                                                                    <div className="w-12 flex-shrink-0">
-                                                                        <p className="text-xs text-slate-500 font-racing">SET</p>
-                                                                        <p className="text-2xl font-racing text-racing-red">{setNum}</p>
-                                                                    </div>
-                                                                    <div className="flex-1 grid grid-cols-2 gap-3">
-                                                                        <div>
-                                                                            <label className="text-xs text-slate-500 font-racing">WEIGHT (LBS)</label>
-                                                                            <input
-                                                                                type="number"
-                                                                                step="0.5"
-                                                                                value={setData?.weight || ''}
-                                                                                onChange={(e) => logSet(ex.id, setNum, e.target.value, setData?.reps || '')}
-                                                                                className="w-full bg-slate-900 border border-slate-700 px-3 py-2 text-white font-racing text-lg rounded focus:border-racing-blue outline-none"
-                                                                                placeholder="135"
-                                                                            />
-                                                                        </div>
-                                                                        <div>
-                                                                            <label className="text-xs text-slate-500 font-racing">REPS</label>
-                                                                            <input
-                                                                                type="number"
-                                                                                value={setData?.reps || ''}
-                                                                                onChange={(e) => logSet(ex.id, setNum, setData?.weight || '', e.target.value)}
-                                                                                className="w-full bg-slate-900 border border-slate-700 px-3 py-2 text-white font-racing text-lg rounded focus:border-racing-blue outline-none"
-                                                                                placeholder="10"
-                                                                            />
-                                                                        </div>
-                                                                    </div>
-                                                                    {setData && (
-                                                                        <Check className="w-6 h-6 text-racing-cyan flex-shrink-0" />
-                                                                    )}
-                                                                </div>
+                                <div className="space-y-4">
+                                    {programs[activeTab].exercises.map((ex) => {
+                                        const displayName = getDisplayExercise(ex.name);
+                                        const isCustom = displayName !== ex.name;
+                                        const exerciseData = currentWorkout[ex.id];
+                                        const targetSets = getTargetSets(ex.id, ex.sets);
+
+                                        return (
+                                            <div key={ex.id} className="bg-slate-900 border-2 border-slate-800 hover:border-racing-red transition-all" style={{ clipPath: 'polygon(0 0, 100% 0, 100% calc(100% - 12px), calc(100% - 12px) 100%, 0 100%)' }}>
+                                                <button onClick={() => setExpandedExercise(expandedExercise === ex.id ? null : ex.id)} className="w-full p-6 flex items-center justify-between text-left">
+                                                    <div className="flex-1">
+                                                        <div className="flex items-center gap-2 mb-2">
+                                                            <h3 className="font-bold text-lg text-white">{displayName}</h3>
+                                                            {isCustom && <span className="px-2 py-0.5 bg-racing-blue/20 border border-racing-blue text-racing-blue text-xs font-racing">ALT</span>}
+                                                            {exerciseData && Object.keys(exerciseData.sets).length > 0 && (
+                                                                <span className="px-2 py-0.5 bg-racing-red/20 border border-racing-red text-racing-red text-xs font-racing">
+                                                                    {Object.keys(exerciseData.sets).length}/{targetSets} LOGGED
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                        <div className="flex flex-wrap gap-5 text-sm items-center">
+                                                            <span className="flex items-center gap-2 text-slate-400">
+                                                                <div className="w-2 h-2 rounded-full bg-racing-red gauge-indicator"></div>
+                                                                <span className="font-racing">{targetSets} SETS</span>
+                                                            </span>
+                                                            <div className="flex items-center gap-2">
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={(e) => { e.preventDefault(); e.stopPropagation(); adjustTargetSets(ex.id, targetSets - 1); }}
+                                                                    className="h-8 w-8 inline-flex items-center justify-center rounded border border-slate-700 bg-slate-950 hover:bg-slate-900"
+                                                                    aria-label="Decrease sets"
+                                                                >
+                                                                    <Minus className="w-4 h-4 text-slate-300" />
+                                                                </button>
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={(e) => { e.preventDefault(); e.stopPropagation(); adjustTargetSets(ex.id, targetSets + 1); }}
+                                                                    className="h-8 w-8 inline-flex items-center justify-center rounded border border-slate-700 bg-slate-950 hover:bg-slate-900"
+                                                                    aria-label="Increase sets"
+                                                                >
+                                                                    <Plus className="w-4 h-4 text-slate-300" />
+                                                                </button>
                                                             </div>
-                                                        );
-                                                    })}
-                                                </div>
+                                                            <span className="flex items-center gap-2 text-slate-400">
+                                                                <div className="w-2 h-2 rounded-full bg-racing-blue gauge-indicator" style={{animationDelay: '0.3s'}}></div>
+                                                                <span className="font-racing">{ex.reps} REPS</span>
+                                                            </span>
+                                                            <span className="flex items-center gap-2 text-slate-400">
+                                                                <div className="w-2 h-2 rounded-full bg-racing-cyan gauge-indicator" style={{animationDelay: '0.6s'}}></div>
+                                                                <span className="font-racing">{ex.rest}S</span>
+                                                            </span>
+                                                        </div>
+                                                    </div>
+                                                    <ChevronDown className={`w-6 h-6 text-slate-500 transition-transform ${expandedExercise === ex.id ? 'rotate-180 text-racing-red' : ''}`} />
+                                                </button>
 
-                                                <div className="pt-4 border-t border-slate-800">
-                                                    <button 
-                                                        onClick={(e) => { 
-                                                            e.stopPropagation(); 
-                                                            setSelectedExercise(ex);
-                                                            setShowSubstitutes(true);
-                                                        }} 
-                                                        className="w-full bg-slate-800 border-2 border-racing-blue hover:border-racing-cyan py-3 font-racing text-sm text-racing-blue hover:text-racing-cyan transition-all flex items-center justify-center gap-2"
-                                                    >
-                                                        <Shuffle className="w-4 h-4" />
-                                                        SWITCH EXERCISE
-                                                    </button>
-                                                    {isCustom && (
-                                                        <button 
-                                                            onClick={(e) => { 
-                                                                e.stopPropagation(); 
-                                                                resetExercise(ex.name); 
-                                                            }} 
-                                                            className="w-full mt-2 py-2 text-xs font-racing text-slate-500 hover:text-racing-red transition-colors flex items-center justify-center gap-2"
-                                                        >
-                                                            <RefreshCw className="w-3 h-3" />
-                                                            RESET TO: {ex.name}
-                                                        </button>
-                                                    )}
+                                                {expandedExercise === ex.id && (
+                                                    <div className="px-6 pb-6 border-t-2 border-slate-800 pt-5 space-y-4">
+                                                        <div className="space-y-2">
+                                                            {[...Array(targetSets)].map((_, setIdx) => {
+                                                                const setNum = setIdx + 1;
+                                                                const setData = exerciseData?.sets?.[setNum];
+                                                                return (
+                                                                    <div key={setNum} className="bg-slate-950 p-4 rounded border border-slate-800">
+                                                                        <div className="flex items-center gap-4">
+                                                                            <div className="w-12 flex-shrink-0">
+                                                                                <p className="text-xs text-slate-500 font-racing">SET</p>
+                                                                                <p className="text-2xl font-racing text-racing-red">{setNum}</p>
+                                                                            </div>
+                                                                            <div className="flex-1 grid grid-cols-2 gap-3">
+                                                                                <div>
+                                                                                    <label className="text-xs text-slate-500 font-racing">WEIGHT (LBS)</label>
+                                                                                    <input
+                                                                                        type="number"
+                                                                                        step="0.5"
+                                                                                        value={setData?.weight || ''}
+                                                                                        onChange={(e) => logSet(ex.id, setNum, e.target.value, setData?.reps || '')}
+                                                                                        className="w-full bg-slate-900 border border-slate-700 px-3 py-2 text-white font-racing text-lg rounded focus:border-racing-blue outline-none"
+                                                                                        placeholder="135"
+                                                                                    />
+                                                                                </div>
+                                                                                <div>
+                                                                                    <label className="text-xs text-slate-500 font-racing">REPS</label>
+                                                                                    <input
+                                                                                        type="number"
+                                                                                        value={setData?.reps || ''}
+                                                                                        onChange={(e) => logSet(ex.id, setNum, setData?.weight || '', e.target.value)}
+                                                                                        className="w-full bg-slate-900 border border-slate-700 px-3 py-2 text-white font-racing text-lg rounded focus:border-racing-blue outline-none"
+                                                                                        placeholder="10"
+                                                                                    />
+                                                                                </div>
+                                                                            </div>
+                                                                            {setData && (
+                                                                                <Check className="w-6 h-6 text-racing-cyan flex-shrink-0" />
+                                                                            )}
+                                                                        </div>
+                                                                    </div>
+                                                                );
+                                                            })}
+                                                        </div>
+
+                                                        <div className="pt-4 border-t border-slate-800">
+                                                            <button
+                                                                onClick={(e) => {
+                                                                    e.stopPropagation();
+                                                                    setSelectedExercise(ex);
+                                                                    setShowSubstitutes(true);
+                                                                }}
+                                                                className="w-full bg-slate-800 border-2 border-racing-blue hover:border-racing-cyan py-3 font-racing text-sm text-racing-blue hover:text-racing-cyan transition-all flex items-center justify-center gap-2"
+                                                            >
+                                                                <Shuffle className="w-4 h-4" />
+                                                                SWITCH EXERCISE
+                                                            </button>
+                                                            {isCustom && (
+                                                                <button
+                                                                    onClick={(e) => {
+                                                                        e.stopPropagation();
+                                                                        resetExercise(ex.name);
+                                                                    }}
+                                                                    className="w-full mt-2 py-2 text-xs font-racing text-slate-500 hover:text-racing-red transition-colors flex items-center justify-center gap-2"
+                                                                >
+                                                                    <RefreshCw className="w-3 h-3" />
+                                                                    RESET TO: {ex.name}
+                                                                </button>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            </>
+                        ) : (
+                            <div className="space-y-4">
+                                <div className="bg-slate-900 border border-slate-800 p-5">
+                                    <div className="flex items-center justify-between gap-4">
+                                        <div>
+                                            <h2 className="text-2xl font-racing text-white">WORKOUT HISTORY</h2>
+                                            <p className="text-sm text-slate-400 mt-1">History is loaded from your connected Google Sheet.</p>
+                                        </div>
+                                        <button
+                                            onClick={loadHistoryFromSheets}
+                                            className="px-4 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-lg flex items-center gap-2"
+                                        >
+                                            <RefreshCw className="w-4 h-4" />
+                                            <span className="font-racing text-sm">REFRESH</span>
+                                        </button>
+                                    </div>
+
+                                    {(!sheetUrl || !scriptUrl) && (
+                                        <div className="mt-4 p-4 bg-slate-950 border border-slate-800">
+                                            <p className="text-sm text-slate-300">Connect your Google Sheet in Settings to view history.</p>
+                                        </div>
+                                    )}
+                                    {historyStatus.loading && (
+                                        <div className="mt-4 p-4 bg-slate-950 border border-slate-800">
+                                            <p className="text-sm text-slate-300">Loading...</p>
+                                        </div>
+                                    )}
+                                    {historyStatus.error && (
+                                        <div className="mt-4 p-4 bg-red-950/30 border border-red-700">
+                                            <p className="text-sm text-red-200">{historyStatus.error}</p>
+                                        </div>
+                                    )}
+                                </div>
+
+                                {historyItems.length === 0 && !historyStatus.loading && !historyStatus.error && sheetUrl && scriptUrl && (
+                                    <div className="bg-slate-900 border border-slate-800 p-5">
+                                        <p className="text-sm text-slate-400">No workouts found yet.</p>
+                                    </div>
+                                )}
+
+                                <div className="space-y-3">
+                                    {historyItems.map((w, idx) => (
+                                        <div key={idx} className="bg-slate-900 border-2 border-slate-800" style={{ clipPath: 'polygon(0 0, 100% 0, 100% calc(100% - 12px), calc(100% - 12px) 100%, 0 100%)' }}>
+                                            <div className="p-5 border-b border-slate-800">
+                                                <div className="flex items-center justify-between gap-4">
+                                                    <div>
+                                                        <p className="font-racing text-sm text-slate-400">{w.programName || w.program || 'Workout'}</p>
+                                                        <p className="text-white font-semibold mt-1">{new Date(w.date || w.timestamp || Date.now()).toLocaleDateString()}</p>
+                                                    </div>
+                                                    <div className="text-right">
+                                                        <p className="text-xs font-racing text-slate-500">SETS</p>
+                                                        <p className="text-xl font-racing text-racing-red">{w.totalSets || 0}</p>
+                                                    </div>
                                                 </div>
                                             </div>
-                                        )}
-                                    </div>
-                                );
-                            })}
-                        </div>
+                                            <div className="p-5 space-y-2">
+                                                {(w.exercises || []).slice(0, 8).map((ex, j) => (
+                                                    <div key={j} className="flex items-center justify-between gap-4">
+                                                        <p className="text-sm text-white">{ex.name}</p>
+                                                        <p className="text-xs text-slate-400 font-racing">{ex.setsLogged} sets</p>
+                                                    </div>
+                                                ))}
+                                                {(w.exercises || []).length > 8 && (
+                                                    <p className="text-xs text-slate-500 font-racing">+{(w.exercises || []).length - 8} more</p>
+                                                )}
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
                     </main>
-
-                    <nav className="fixed bottom-0 left-0 right-0 bg-slate-950 border-t-2 border-racing-red z-40">
-                        <div className="h-1 racing-stripes"></div>
-                        <div className="flex justify-around p-4">
-                            <button className="flex flex-col items-center gap-2">
-                                <div className="p-2 bg-racing-red/20 border border-racing-red rounded-lg">
-                                    <Dumbbell className="w-6 h-6 text-racing-red" />
-                                </div>
-                                <span className="text-xs font-racing text-racing-red">WORKOUTS</span>
-                            </button>
-                            <button className="flex flex-col items-center gap-2">
-                                <div className="p-2 rounded-lg">
-                                    <BarChart3 className="w-6 h-6 text-slate-600" />
-                                </div>
-                                <span className="text-xs font-racing text-slate-600">PROGRESS</span>
-                            </button>
-                            <button className="flex flex-col items-center gap-2">
-                                <div className="p-2 rounded-lg">
-                                    <Calendar className="w-6 h-6 text-slate-600" />
-                                </div>
-                                <span className="text-xs font-racing text-slate-600">HISTORY</span>
-                            </button>
-                        </div>
-                    </nav>
 
                     {/* Exercise Substitution Modal */}
                     {showSubstitutes && selectedExercise && (
@@ -500,27 +720,100 @@
                                 </div>
 
                                 <div className="p-6 space-y-6">
-                                    <div>
-                                        <label className="block text-xs font-racing mb-3 text-slate-400">GOOGLE SHEETS URL</label>
-                                        <input 
-                                            type="text" 
-                                            value={gSheetUrl} 
-                                            onChange={(e) => setGSheetUrl(e.target.value)} 
-                                            className="w-full bg-slate-950 border-2 border-slate-700 px-4 py-3 text-white focus:border-racing-blue outline-none text-sm" 
-                                            placeholder="https://script.google.com/macros/s/..." 
-                                        />
+                                    <div className="space-y-4">
+                                        <div>
+                                            <label className="block text-xs font-racing mb-3 text-slate-400">GOOGLE SHEET URL</label>
+                                            <input
+                                                type="text"
+                                                value={sheetUrl}
+                                                onChange={(e) => setSheetUrl(e.target.value)}
+                                                className="w-full bg-slate-950 border-2 border-slate-700 px-4 py-3 text-white focus:border-racing-blue outline-none text-sm"
+                                                placeholder="https://docs.google.com/spreadsheets/d/..."
+                                            />
+                                            <p className="text-xs text-slate-500 mt-2">This should be the sheet that already contains your training history.</p>
+                                        </div>
+
+                                        <div>
+                                            <label className="block text-xs font-racing mb-3 text-slate-400">APPS SCRIPT WEB APP URL</label>
+                                            <input
+                                                type="text"
+                                                value={scriptUrl}
+                                                onChange={(e) => setScriptUrl(e.target.value)}
+                                                className="w-full bg-slate-950 border-2 border-slate-700 px-4 py-3 text-white focus:border-racing-blue outline-none text-sm"
+                                                placeholder="https://script.google.com/macros/s/.../exec"
+                                            />
+                                            <p className="text-xs text-slate-500 mt-2">This comes from Apps Script → Deploy → Web app.</p>
+                                        </div>
                                     </div>
 
-                                    <button 
-                                        onClick={() => {
-                                            localStorage.setItem('gSheetUrl', gSheetUrl);
-                                            setShowSettings(false);
-                                            alert('⚙️ Settings saved!');
-                                        }} 
-                                        className="w-full py-4 bg-slate-800 hover:bg-slate-700 font-racing text-xl text-white rounded transition-all"
-                                    >
-                                        SAVE SETTINGS
-                                    </button>
+                                    <div className="bg-slate-950 border border-slate-800 p-4 space-y-3">
+                                        <h3 className="font-racing text-sm text-white">HOW SAVING WORKS</h3>
+                                        <ol className="list-decimal ml-5 space-y-2 text-xs text-slate-300">
+                                            <li>Open your Google Sheet → Extensions → Apps Script.</li>
+                                            <li>Paste the code from <span className="font-racing">google-sheets-integration.gs</span> (included in this repo).</li>
+                                            <li>Deploy as a Web app. Set access to <span className="font-racing">Anyone</span> and execute as <span className="font-racing">Me</span>.</li>
+                                            <li>Copy the Web app URL and paste it above.</li>
+                                            <li>Paste your Google Sheet URL above, then press <span className="font-racing">SAVE SETTINGS</span>.</li>
+                                        </ol>
+                                        <div className="flex gap-2 pt-1">
+                                            <button
+                                                onClick={async () => {
+                                                    localStorage.setItem('sheetUrl', sheetUrl);
+                                                    localStorage.setItem('scriptUrl', scriptUrl);
+                                                    showToast('success', 'Settings saved.');
+                                                    // Optional: test history load
+                                                    await loadHistoryFromSheets();
+                                                    setShowSettings(false);
+                                                }}
+                                                className="flex-1 py-3 bg-slate-800 hover:bg-slate-700 border border-slate-700 font-racing text-white rounded transition-all"
+                                            >
+                                                SAVE SETTINGS
+                                            </button>
+                                            <button
+                                                onClick={async () => {
+                                                    if (!sheetUrl || !scriptUrl) {
+                                                        showToast('error', 'Paste both the Sheet URL and the Web App URL first.');
+                                                        return;
+                                                    }
+                                                    const spreadsheetId = extractSpreadsheetId(sheetUrl);
+                                                    if (!spreadsheetId) {
+                                                        showToast('error', 'Invalid Google Sheet URL.');
+                                                        return;
+                                                    }
+                                                    try {
+                                                        const res = await fetch(scriptUrl, {
+                                                            method: 'POST',
+                                                            mode: 'cors',
+                                                            headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                                                            body: JSON.stringify({
+                                                                action: 'append_workout',
+                                                                spreadsheetId,
+                                                                spreadsheetUrl: sheetUrl,
+                                                                timestamp: new Date().toISOString(),
+                                                                program: activeTab,
+                                                                workoutName: 'Test Save',
+                                                                exercises: []
+                                                            })
+                                                        });
+                                                        const t = await res.text();
+                                                        let p = null;
+                                                        try { p = JSON.parse(t); } catch (_) {}
+                                                        if (!res.ok || !p || p.success !== true) {
+                                                            showToast('error', p?.error || p?.message || `Test failed (HTTP ${res.status})`);
+                                                            return;
+                                                        }
+                                                        showToast('success', 'Test save succeeded.');
+                                                    } catch (e) {
+                                                        console.error(e);
+                                                        showToast('error', 'Test save failed. Check deployment permissions.');
+                                                    }
+                                                }}
+                                                className="px-4 py-3 bg-slate-900 hover:bg-slate-800 border border-slate-700 font-racing text-white rounded transition-all"
+                                            >
+                                                TEST SAVE
+                                            </button>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
                         </div>
