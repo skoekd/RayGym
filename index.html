@@ -3,8 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>IronFlow - v2.0 TESTED</title>
-    <!-- VERSION 2.0 - CLEAR YOUR BROWSER CACHE (Ctrl+Shift+R or Cmd+Shift+R) -->
+    <title>IronFlow - Workout Tracker</title>
     <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
@@ -17,36 +16,23 @@
         }
       }
     </script>
-    <!-- CORRECT LOADING ORDER FOR LUCIDE REACT -->
     <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-    <script src="https://unpkg.com/lucide-react@0.263.1/dist/umd/lucide-react.js"></script>
     
     <style>
         * { -webkit-tap-highlight-color: transparent; }
         body { overscroll-behavior: none; -webkit-font-smoothing: antialiased; margin: 0; padding: 0; }
         .racing-stripes { 
-            background: linear-gradient(90deg, 
-                transparent 45%, #2563EB 45%, #2563EB 48%, 
-                #06B6D4 48%, #06B6D4 52%, 
-                #2563EB 52%, #2563EB 55%, transparent 55%
-            ); 
+            background: linear-gradient(90deg, transparent 45%, #2563EB 45%, #2563EB 48%, #06B6D4 48%, #06B6D4 52%, #2563EB 52%, #2563EB 55%, transparent 55%); 
         }
         .red-metallic { 
-            background: linear-gradient(135deg, 
-                #DC2626 0%, #EF4444 25%, #DC2626 50%, #B91C1C 75%, #991B1B 100%
-            ); 
+            background: linear-gradient(135deg, #DC2626 0%, #EF4444 25%, #DC2626 50%, #B91C1C 75%, #991B1B 100%); 
         }
         .metallic-shine { 
-            background: linear-gradient(135deg, 
-                rgba(255,255,255,0.3) 0%, rgba(255,255,255,0.1) 50%, rgba(255,255,255,0.3) 100%
-            ); 
+            background: linear-gradient(135deg, rgba(255,255,255,0.3) 0%, rgba(255,255,255,0.1) 50%, rgba(255,255,255,0.3) 100%); 
         }
-        @keyframes pulse-gauge { 
-            0%, 100% { transform: scale(1); opacity: 0.5; } 
-            50% { transform: scale(1.05); opacity: 0.8; } 
-        }
+        @keyframes pulse-gauge { 0%, 100% { transform: scale(1); opacity: 0.5; } 50% { transform: scale(1.05); opacity: 0.8; } }
         .gauge-indicator { animation: pulse-gauge 2s ease-in-out infinite; }
         .scrollbar-hide::-webkit-scrollbar { display: none; }
         .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
@@ -56,27 +42,92 @@
     <div id="root"></div>
     
     <script type="text/babel">
-        // VERIFIED WORKING PATTERN - DO NOT MODIFY
         const { useState } = React;
-        
-        // Destructure ALL icons at once from lucideReact global
-        const { 
-            Dumbbell, 
-            Plus, 
-            X, 
-            Settings, 
-            ChevronDown, 
-            Check, 
-            Calendar, 
-            BarChart3, 
-            Zap, 
-            Activity, 
-            Shuffle, 
-            RefreshCw, 
-            ChevronRight
-        } = lucideReact;
 
-        // Main Application Component
+        // Inline SVG Icon Components (guaranteed to work)
+        const Icon = ({ children, className = "", ...props }) => (
+            <svg className={className} fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24" {...props}>
+                {children}
+            </svg>
+        );
+
+        const Dumbbell = ({ className }) => (
+            <Icon className={className}>
+                <path d="M14.4 14.4 9.6 9.6" />
+                <path d="M18.657 21.485a2 2 0 1 1-2.829-2.828l-1.767 1.768a2 2 0 1 1-2.829-2.829l6.364-6.364a2 2 0 1 1 2.829 2.829l-1.768 1.767a2 2 0 1 1 2.828 2.829z" />
+                <path d="m21.5 21.5-1.4-1.4" />
+                <path d="M3.9 3.9 2.5 2.5" />
+                <path d="M6.404 12.768a2 2 0 1 1-2.829-2.829l1.768-1.767a2 2 0 1 1-2.828-2.829l2.828-2.828a2 2 0 1 1 2.829 2.828l1.767-1.768a2 2 0 1 1 2.829 2.829z" />
+            </Icon>
+        );
+
+        const Plus = ({ className }) => (
+            <Icon className={className}>
+                <path d="M5 12h14" />
+                <path d="M12 5v14" />
+            </Icon>
+        );
+
+        const X = ({ className }) => (
+            <Icon className={className}>
+                <path d="M18 6 6 18" />
+                <path d="m6 6 12 12" />
+            </Icon>
+        );
+
+        const Settings = ({ className }) => (
+            <Icon className={className}>
+                <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z" />
+                <circle cx="12" cy="12" r="3" />
+            </Icon>
+        );
+
+        const ChevronDown = ({ className }) => (
+            <Icon className={className}>
+                <path d="m6 9 6 6 6-6" />
+            </Icon>
+        );
+
+        const Calendar = ({ className }) => (
+            <Icon className={className}>
+                <rect width="18" height="18" x="3" y="4" rx="2" ry="2" />
+                <line x1="16" x2="16" y1="2" y2="6" />
+                <line x1="8" x2="8" y1="2" y2="6" />
+                <line x1="3" x2="21" y1="10" y2="10" />
+            </Icon>
+        );
+
+        const BarChart = ({ className }) => (
+            <Icon className={className}>
+                <line x1="12" x2="12" y1="20" y2="10" />
+                <line x1="18" x2="18" y1="20" y2="4" />
+                <line x1="6" x2="6" y1="20" y2="16" />
+            </Icon>
+        );
+
+        const Shuffle = ({ className }) => (
+            <Icon className={className}>
+                <path d="M2 18h1.4c1.3 0 2.5-.6 3.3-1.7l6.1-8.6c.7-1.1 2-1.7 3.3-1.7H22" />
+                <path d="m18 2 4 4-4 4" />
+                <path d="M2 6h1.9c1.5 0 2.9.9 3.6 2.2" />
+                <path d="M22 18h-5.9c-1.3 0-2.6-.7-3.3-1.8l-.5-.8" />
+                <path d="m18 14 4 4-4 4" />
+            </Icon>
+        );
+
+        const Zap = ({ className }) => (
+            <Icon className={className}>
+                <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
+            </Icon>
+        );
+
+        const Activity = ({ className }) => (
+            <Icon className={className}>
+                <path d="M22 12h-4l-3 9L9 3l-3 9H2" />
+            </Icon>
+        );
+
+        // Main App
         function App() {
             const [activeTab, setActiveTab] = useState('push');
             const [expanded, setExpanded] = useState(null);
@@ -128,10 +179,8 @@
 
             return (
                 <div className="min-h-screen pb-32">
-                    {/* Racing stripe accent */}
                     <div className="h-1 racing-stripes"></div>
 
-                    {/* Header */}
                     <header className="bg-slate-900 border-b-2 border-racing-red">
                         <div className="p-6 max-w-7xl mx-auto">
                             <div className="flex items-center justify-between">
@@ -158,9 +207,7 @@
                         </div>
                     </header>
 
-                    {/* Main Content */}
                     <main className="max-w-7xl mx-auto p-6">
-                        {/* Program Tabs */}
                         <div className="flex gap-3 mb-6 overflow-x-auto scrollbar-hide pb-2">
                             {Object.entries(programs).map(([key, program]) => (
                                 <button
@@ -178,7 +225,6 @@
                             ))}
                         </div>
 
-                        {/* Exercise Cards */}
                         <div className="space-y-4">
                             {programs[activeTab].exercises.map((ex, idx) => (
                                 <div 
@@ -235,7 +281,7 @@
                                                 <button 
                                                     onClick={(e) => {
                                                         e.stopPropagation();
-                                                        alert('Exercise substitution coming soon!');
+                                                        alert('Exercise substitution feature coming soon!');
                                                     }}
                                                     className="bg-slate-800 border-2 border-racing-blue hover:border-racing-cyan py-3 font-racing text-sm tracking-widest text-racing-blue hover:text-racing-cyan transition-all flex items-center justify-center gap-2"
                                                 >
@@ -245,7 +291,7 @@
                                                 <button 
                                                     onClick={(e) => {
                                                         e.stopPropagation();
-                                                        alert('Log workout coming soon!');
+                                                        alert('Log workout feature coming soon!');
                                                     }}
                                                     className="relative overflow-hidden group"
                                                 >
@@ -264,9 +310,8 @@
                         </div>
                     </main>
 
-                    {/* FAB */}
                     <button 
-                        onClick={() => alert('Quick add coming soon!')}
+                        onClick={() => alert('Quick add feature coming soon!')}
                         className="fixed bottom-24 right-6 w-16 h-16 rounded-full overflow-hidden shadow-2xl shadow-racing-red/50 hover:scale-110 active:scale-95 transition-transform z-50"
                     >
                         <div className="absolute inset-0 red-metallic"></div>
@@ -276,7 +321,6 @@
                         </div>
                     </button>
 
-                    {/* Bottom Navigation */}
                     <nav className="fixed bottom-0 left-0 right-0 bg-slate-950 border-t-2 border-racing-red z-40">
                         <div className="h-1 racing-stripes"></div>
                         <div className="max-w-7xl mx-auto flex justify-around p-4">
@@ -288,7 +332,7 @@
                             </button>
                             <button className="flex flex-col items-center gap-2 group">
                                 <div className="p-2 rounded-lg hover:bg-slate-800 transition-colors">
-                                    <BarChart3 className="w-6 h-6 text-slate-600 group-hover:text-slate-400" />
+                                    <BarChart className="w-6 h-6 text-slate-600 group-hover:text-slate-400" />
                                 </div>
                                 <span className="text-xs font-racing tracking-wide text-slate-600 group-hover:text-slate-400">PROGRESS</span>
                             </button>
@@ -301,7 +345,6 @@
                         </div>
                     </nav>
 
-                    {/* Settings Panel */}
                     {showSettings && (
                         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
                             <div className="bg-slate-900 w-full max-w-md border-2 border-slate-700 shadow-2xl">
@@ -315,7 +358,7 @@
                                 </div>
                                 <div className="p-6">
                                     <p className="text-slate-400 text-center py-8">
-                                        Settings panel coming soon!
+                                        Advanced features (exercise substitution, workout logging, Google Sheets sync) coming in next update!
                                     </p>
                                 </div>
                             </div>
@@ -325,12 +368,6 @@
             );
         }
 
-        // Render the application
-        console.log('✅ React loaded:', typeof React);
-        console.log('✅ ReactDOM loaded:', typeof ReactDOM);
-        console.log('✅ lucideReact loaded:', typeof lucideReact);
-        console.log('✅ Icons available:', Object.keys(lucideReact).length);
-        
         ReactDOM.render(<App />, document.getElementById('root'));
     </script>
 </body>
