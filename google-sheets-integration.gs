@@ -28,11 +28,30 @@ function respond_(obj, callback) {
 
 function doPost(e) {
   try {
-    const body = e && e.postData && e.postData.contents ? e.postData.contents : '{}';
-    const data = JSON.parse(body);
+    const raw = e && e.postData && e.postData.contents ? String(e.postData.contents) : '';
+
+    // Accept either:
+    //  1) JSON body (sendBeacon / fetch with text/plain)
+    //  2) application/x-www-form-urlencoded with a `data=` field (hidden form fallback)
+    let data;
+    if (raw.trim().startsWith('{') || raw.trim().startsWith('[')) {
+      data = JSON.parse(raw);
+    } else {
+      // Parse form body
+      const params = raw.split('&').reduce((acc, part) => {
+        const [k, v] = part.split('=');
+        if (!k) return acc;
+        acc[decodeURIComponent(k)] = decodeURIComponent((v || '').replace(/\+/g, ' '));
+        return acc;
+      }, {});
+      if (!params.data) throw new Error('Missing POST body');
+      data = JSON.parse(params.data);
+    }
 
     if (data.action === 'append_workout') {
-      const result = appendWorkout_(data);
+      // Support body shape: { action, spreadsheetId, payload: {...} }
+      const merged = data.payload ? { ...data.payload, spreadsheetId: data.spreadsheetId || data.payload.spreadsheetId } : data;
+      const result = appendWorkout_(merged);
       return respond_(result, null);
     }
 

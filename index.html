@@ -69,6 +69,7 @@
             const [showSubstitutes, setShowSubstitutes] = useState(false);
             const [showWorkoutSummary, setShowWorkoutSummary] = useState(false);
             const [selectedExercise, setSelectedExercise] = useState(null);
+            const [customEdit, setCustomEdit] = useState({ originalName: null, value: '' }); // inline custom exercise entry
             // Google Sheets integration
             // sheetUrl: the user's Google Sheet link
             // scriptUrl: the user's deployed Apps Script Web App URL
@@ -83,6 +84,22 @@
                 const saved = localStorage.getItem('customExercises');
                 return saved ? JSON.parse(saved) : {};
             });
+
+            // Workout type (saved name). Allows preset types + custom.
+            const TAB_LABELS = { push: 'Push', pull: 'Pull', legs: 'Legs', shoulders: 'Shoulders' };
+            const WORKOUT_TYPE_OPTIONS = ['Push', 'Pull', 'Legs', 'Shoulders'];
+            const [workoutType, setWorkoutType] = useState(() => {
+                return localStorage.getItem('workoutType') || 'Push';
+            });
+            const [customWorkoutType, setCustomWorkoutType] = useState(() => {
+                return localStorage.getItem('customWorkoutType') || '';
+            });
+            const isCustomWorkoutType = workoutType === '__custom__';
+            const getEffectiveWorkoutType = () => {
+                const base = TAB_LABELS[activeTab] || 'Workout';
+                const v = isCustomWorkoutType ? (customWorkoutType || '').trim() : (workoutType || '').trim();
+                return v || base;
+            };
 
             // Per-exercise target set count (default 4), persisted
             const [exerciseTargetSets, setExerciseTargetSets] = useState(() => {
@@ -273,12 +290,75 @@ const rowsToHistoryItems = (rows) => {
                 localStorage.removeItem('currentWorkout');
             };
 
+            // Cross-platform save transport:
+            // - iOS Safari often fails for large JSONP URLs (URL length limits).
+            // - Use POST via sendBeacon when available (best), otherwise use a hidden form+iframe.
+            // We confirm success by reloading history after the POST.
+            const postToAppsScript = (url, jsonString) => {
+                return new Promise((resolve, reject) => {
+                    try {
+                        // Prefer sendBeacon (reliable on iOS/Android/Windows, avoids CORS & URL limits)
+                        if (navigator && typeof navigator.sendBeacon === 'function') {
+                            const blob = new Blob([jsonString], { type: 'text/plain;charset=UTF-8' });
+                            const ok = navigator.sendBeacon(url, blob);
+                            if (!ok) {
+                                reject(new Error('sendBeacon failed'));
+                                return;
+                            }
+                            resolve({ ok: true, via: 'beacon' });
+                            return;
+                        }
+
+                        // Fallback: hidden form POST to a hidden iframe
+                        const iframeName = 'raygym_save_iframe_' + Math.random().toString(36).slice(2);
+                        const iframe = document.createElement('iframe');
+                        iframe.name = iframeName;
+                        iframe.style.display = 'none';
+
+                        const form = document.createElement('form');
+                        form.method = 'POST';
+                        form.action = url;
+                        form.target = iframeName;
+                        form.style.display = 'none';
+
+                        // Send as form field `data` to avoid CORS preflight
+                        const input = document.createElement('input');
+                        input.type = 'hidden';
+                        input.name = 'data';
+                        input.value = jsonString;
+                        form.appendChild(input);
+
+                        const cleanup = () => {
+                            iframe.onload = null;
+                            iframe.onerror = null;
+                            try { form.remove(); } catch (_) {}
+                            try { iframe.remove(); } catch (_) {}
+                        };
+
+                        iframe.onload = () => {
+                            cleanup();
+                            resolve({ ok: true, via: 'form' });
+                        };
+                        iframe.onerror = () => {
+                            cleanup();
+                            reject(new Error('iframe post failed'));
+                        };
+
+                        document.body.appendChild(iframe);
+                        document.body.appendChild(form);
+                        form.submit();
+                    } catch (err) {
+                        reject(err);
+                    }
+                });
+            };
+
             const saveWorkout = async () => {
                 const timestamp = new Date().toISOString();
                 const workoutData = {
                     timestamp,
                     program: activeTab,
-                    workoutName: programs[activeTab]?.name || activeTab,
+                    workoutName: getEffectiveWorkoutType(),
                     spreadsheetId: extractSpreadsheetId(sheetUrl),
                     spreadsheetUrl: sheetUrl,
                     exercises: Object.keys(currentWorkout)
@@ -314,32 +394,30 @@ const rowsToHistoryItems = (rows) => {
                 // Save to Google Sheets via Apps Script Web App
                 try {
 
-// Use JSONP to avoid CORS blocks on GitHub Pages / mobile browsers
-const payload = encodeURIComponent(JSON.stringify({
-    timestamp: workoutData.timestamp,
-    date: workoutData.date,
-    program: workoutData.program,
-    workoutName: workoutData.workoutName,
-    exercises: workoutData.exercises
-}));
+                    // POST instead of JSONP GET to avoid iOS/Android URL-length limits.
+                    // Backend (Apps Script) should support doPost and accept either raw JSON
+                    // or form field `data` containing the JSON string.
+                    const postBody = JSON.stringify({
+                        action: 'append_workout',
+                        spreadsheetId: workoutData.spreadsheetId,
+                        payload: {
+                            timestamp: workoutData.timestamp,
+                            date: workoutData.date,
+                            program: workoutData.program,
+                            workoutName: workoutData.workoutName,
+                            workoutType: workoutData.workoutName,
+                            exercises: workoutData.exercises
+                        }
+                    });
 
-const resp = await jsonpRequest(scriptUrl, {
-    action: 'append_workout',
-    spreadsheetId: workoutData.spreadsheetId,
-    payload
-});
+                    await postToAppsScript(scriptUrl, postBody);
 
-if (!resp || (resp.ok !== true && resp.success !== true)) {
-    const msg = resp?.error || resp?.message || 'Save failed.';
-    showToast('error', msg);
-    return;
-}
-
-showToast('success', 'Saved to Google Sheets.');
-clearWorkout();
-setShowWorkoutSummary(false);
-// Refresh history in the background (best effort)
-loadHistoryFromSheets();
+                    // Optimistic success, then confirm by reloading history.
+                    showToast('success', 'Saved to Google Sheets.');
+                    clearWorkout();
+                    setShowWorkoutSummary(false);
+                    // Confirm/refresh history (best effort)
+                    setTimeout(() => loadHistoryFromSheets(), 400);
                 } catch (error) {
                     console.error('Google Sheets save failed:', error);
                     showToast('error', 'Save failed. Check your network and Apps Script deployment settings.');
@@ -385,6 +463,23 @@ setHistoryStatus({ loading: false, error: '' });
             }, [currentWorkout]);
 
             useEffect(() => {
+                // Keep workout type in sync with the selected template unless the user chose custom.
+                if (!isCustomWorkoutType) {
+                    const next = TAB_LABELS[activeTab] || 'Workout';
+                    if (workoutType !== next) setWorkoutType(next);
+                }
+                // eslint-disable-next-line react-hooks/exhaustive-deps
+            }, [activeTab]);
+
+            useEffect(() => {
+                localStorage.setItem('workoutType', workoutType);
+            }, [workoutType]);
+
+            useEffect(() => {
+                localStorage.setItem('customWorkoutType', customWorkoutType);
+            }, [customWorkoutType]);
+
+            useEffect(() => {
                 // Load history whenever the connected sheet changes
                 loadHistoryFromSheets();
             }, [sheetUrl, scriptUrl]);
@@ -407,7 +502,7 @@ setHistoryStatus({ loading: false, error: '' });
                     )}
 
                     <header className="bg-slate-900 border-b-2 border-racing-red">
-                        <div className="p-6 max-w-7xl mx-auto">
+                        <div className="p-4 sm:p-6 max-w-7xl mx-auto">
                             <div className="flex items-center justify-between">
                                 <div className="flex items-center gap-4">
                                     <div className="relative w-14 h-14 rounded-lg overflow-hidden shadow-xl">
@@ -455,7 +550,7 @@ setHistoryStatus({ loading: false, error: '' });
                         </div>
                     </header>
 
-                    <main className="max-w-7xl mx-auto p-6">
+                    <main className="max-w-7xl mx-auto p-4 sm:p-6">
                         {activeView === 'workout' ? (
                             <>
                                 <div className="flex gap-3 mb-6 overflow-x-auto scrollbar-hide pb-2">
@@ -463,7 +558,7 @@ setHistoryStatus({ loading: false, error: '' });
                                         <button
                                             key={key}
                                             onClick={() => setActiveTab(key)}
-                                            className={`flex-shrink-0 px-6 py-3 font-racing text-lg tracking-wider transition-all ${
+                                            className={`flex-shrink-0 px-5 sm:px-6 py-3 font-racing text-lg tracking-wider transition-all ${
                                                 activeTab === key ? 'bg-racing-red text-white scale-105' : 'bg-slate-800 text-slate-400'
                                             }`}
                                             style={{ clipPath: 'polygon(8% 0%, 100% 0%, 92% 100%, 0% 100%)' }}
@@ -471,6 +566,53 @@ setHistoryStatus({ loading: false, error: '' });
                                             {program.name}
                                         </button>
                                     ))}
+                                </div>
+
+                                {/* Workout type selector (saved name). Premium + mobile-friendly. */}
+                                <div className="mb-5 bg-slate-900/70 border border-slate-800 rounded-xl p-4 sm:p-5 shadow-[0_10px_30px_rgba(0,0,0,0.35)]">
+                                    <div className="flex flex-col sm:flex-row sm:items-end gap-3 sm:gap-4">
+                                        <div className="flex-1">
+                                            <p className="text-xs text-slate-500 font-racing tracking-widest mb-2">WORKOUT TYPE</p>
+                                            <div className="relative">
+                                                <select
+                                                    value={workoutType}
+                                                    onChange={(e) => {
+                                                        const v = e.target.value;
+                                                        if (v === '__custom__') {
+                                                            setWorkoutType('__custom__');
+                                                            if (!customWorkoutType) setCustomWorkoutType('');
+                                                        } else {
+                                                            setWorkoutType(v);
+                                                        }
+                                                    }}
+                                                    className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-3 pr-10 text-white font-racing text-base focus:border-racing-blue outline-none appearance-none"
+                                                    aria-label="Workout type"
+                                                >
+                                                    {WORKOUT_TYPE_OPTIONS.map((opt) => (
+                                                        <option key={opt} value={opt}>{opt}</option>
+                                                    ))}
+                                                    <option value="__custom__">Custom...</option>
+                                                </select>
+                                                <div className="pointer-events-none absolute inset-y-0 right-3 flex items-center">
+                                                    <ChevronDown className="w-4 h-4 text-slate-400" />
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        {isCustomWorkoutType && (
+                                            <div className="flex-1">
+                                                <p className="text-xs text-slate-500 font-racing tracking-widest mb-2">CUSTOM NAME</p>
+                                                <input
+                                                    type="text"
+                                                    value={customWorkoutType}
+                                                    onChange={(e) => setCustomWorkoutType(e.target.value)}
+                                                    className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-3 text-white font-racing text-base focus:border-racing-blue outline-none"
+                                                    placeholder="e.g., Upper Body"
+                                                />
+                                            </div>
+                                        )}
+                                    </div>
+                                    <p className="mt-3 text-xs text-slate-500">Saved workouts will use: <span className="text-slate-200 font-medium">{getEffectiveWorkoutType()}</span></p>
                                 </div>
 
                                 <div className="space-y-4">
@@ -482,33 +624,61 @@ setHistoryStatus({ loading: false, error: '' });
 
                                         return (
                                             <div key={ex.id} className="bg-slate-900 border-2 border-slate-800 hover:border-racing-red transition-all" style={{ clipPath: 'polygon(0 0, 100% 0, 100% calc(100% - 12px), calc(100% - 12px) 100%, 0 100%)' }}>
-                                                <button onClick={() => setExpandedExercise(expandedExercise === ex.id ? null : ex.id)} className="w-full p-6 flex items-center justify-between text-left">
+                                                <button onClick={() => setExpandedExercise(expandedExercise === ex.id ? null : ex.id)} className="w-full p-4 sm:p-6 flex items-center justify-between text-left">
                                                     <div className="flex-1">
-                                                        <div className="flex items-center justify-between gap-3 mb-2">
-                                                            <div className="flex items-center gap-2 min-w-0">
-                                                                <h3 className="font-bold text-lg text-white truncate">{displayName}</h3>
-                                                                {isCustom && <span className="px-2 py-0.5 bg-racing-blue/20 border border-racing-blue text-racing-blue text-xs font-racing">ALT</span>}
-                                                                {exerciseData && Object.keys(exerciseData.sets).length > 0 && (
-                                                                    <span className="px-2 py-0.5 bg-racing-red/20 border border-racing-red text-racing-red text-xs font-racing">
-                                                                        {Object.keys(exerciseData.sets).length}/{targetSets} LOGGED
-                                                                    </span>
-                                                                )}
-                                                            </div>
-                                                            <button
-                                                                type="button"
-                                                                onClick={(e) => {
-                                                                    e.preventDefault();
-                                                                    e.stopPropagation();
-                                                                    setSelectedExercise(ex);
-                                                                    setShowSubstitutes(true);
-                                                                }}
-                                                                className="h-9 px-3 inline-flex items-center gap-2 rounded border border-slate-700 bg-slate-950 hover:bg-slate-900"
-                                                                aria-label="Switch exercise"
-                                                            >
-                                                                <Shuffle className="w-4 h-4 text-slate-200" />
-                                                                <span className="font-racing text-xs text-slate-200 tracking-wider">SWITCH</span>
-                                                            </button>
-                                                        </div>
+                                                        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-2">
+                                                            
+<div className="flex items-start gap-2 min-w-0 flex-1">
+    <div className="min-w-0 flex-1">
+        <div className="relative">
+            <select
+                value={displayName}
+                onClick={(e) => { e.preventDefault(); e.stopPropagation(); }}
+                onChange={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    const v = e.target.value;
+
+                    if (v === '__original__') {
+                        resetExercise(ex.name);
+                        setCustomEdit({ originalName: null, value: '' });
+                        return;
+                    }
+
+                    if (v === '__custom__') {
+                        setExpandedExercise(ex.id);
+                        const existing = getDisplayExercise(ex.name);
+                        setCustomEdit({ originalName: ex.name, value: existing === ex.name ? '' : existing });
+                        return;
+                    }
+
+                    substituteExercise(ex.name, v);
+                    setCustomEdit({ originalName: null, value: '' });
+                }}
+                className="w-full bg-slate-950 border border-slate-700 rounded px-3 py-2 pr-10 text-white font-bold text-lg focus:border-racing-blue outline-none appearance-none"
+                aria-label="Select exercise"
+            >
+                <option value={displayName}>{displayName}</option>
+                <option value="__original__">Reset to: {ex.name}</option>
+                {(EXERCISE_SUBS[ex.name] || []).map((alt) => (
+                    <option key={alt.name} value={alt.name}>{alt.name}</option>
+                ))}
+                <option value="__custom__">Custom exercise...</option>
+            </select>
+            <div className="pointer-events-none absolute inset-y-0 right-3 flex items-center">
+                <ChevronDown className="w-4 h-4 text-slate-400" />
+            </div>
+        </div>
+    </div>
+
+    {isCustom && <span className="px-2 py-0.5 bg-racing-blue/20 border border-racing-blue text-racing-blue text-xs font-racing self-center">ALT</span>}
+    {exerciseData && Object.keys(exerciseData.sets).length > 0 && (
+        <span className="px-2 py-0.5 bg-racing-red/20 border border-racing-red text-racing-red text-xs font-racing self-center">
+            {Object.keys(exerciseData.sets).length}/{targetSets} LOGGED
+        </span>
+    )}
+</div>
+</div>
                                                         <div className="flex flex-wrap gap-5 text-sm items-center">
                                                             <span className="flex items-center gap-2 text-slate-400">
                                                                 <div className="w-2 h-2 rounded-full bg-racing-red gauge-indicator"></div>
@@ -518,7 +688,7 @@ setHistoryStatus({ loading: false, error: '' });
                                                                 <button
                                                                     type="button"
                                                                     onClick={(e) => { e.preventDefault(); e.stopPropagation(); adjustTargetSets(ex.id, targetSets - 1); }}
-                                                                    className="h-8 w-8 inline-flex items-center justify-center rounded border border-slate-700 bg-slate-950 hover:bg-slate-900"
+                                                                    className="h-10 w-10 sm:h-8 sm:w-8 inline-flex items-center justify-center rounded border border-slate-700 bg-slate-950 hover:bg-slate-900"
                                                                     aria-label="Decrease sets"
                                                                 >
                                                                     <Minus className="w-4 h-4 text-slate-300" />
@@ -526,7 +696,7 @@ setHistoryStatus({ loading: false, error: '' });
                                                                 <button
                                                                     type="button"
                                                                     onClick={(e) => { e.preventDefault(); e.stopPropagation(); adjustTargetSets(ex.id, targetSets + 1); }}
-                                                                    className="h-8 w-8 inline-flex items-center justify-center rounded border border-slate-700 bg-slate-950 hover:bg-slate-900"
+                                                                    className="h-10 w-10 sm:h-8 sm:w-8 inline-flex items-center justify-center rounded border border-slate-700 bg-slate-950 hover:bg-slate-900"
                                                                     aria-label="Increase sets"
                                                                 >
                                                                     <Plus className="w-4 h-4 text-slate-300" />
@@ -546,8 +716,55 @@ setHistoryStatus({ loading: false, error: '' });
                                                 </button>
 
                                                 {expandedExercise === ex.id && (
-                                                    <div className="px-6 pb-6 border-t-2 border-slate-800 pt-5 space-y-4">
+                                                    <div className="px-4 sm:px-6 pb-5 sm:pb-6 border-t-2 border-slate-800 pt-4 sm:pt-5 space-y-4">
                                                         <div className="space-y-2">
+                                                            {customEdit.originalName === ex.name && (
+                                                                <div className="bg-slate-950 p-4 rounded border border-slate-800">
+                                                                    <p className="text-xs text-slate-500 font-racing mb-2">CUSTOM EXERCISE NAME</p>
+                                                                    <div className="flex flex-col sm:flex-row gap-3">
+                                                                        <input
+                                                                            type="text"
+                                                                            value={customEdit.value}
+                                                                            onClick={(e) => e.stopPropagation()}
+                                                                            onChange={(e) => setCustomEdit({ originalName: ex.name, value: e.target.value })}
+                                                                            className="flex-1 bg-slate-900 border border-slate-700 px-3 py-2 text-white font-racing text-base rounded focus:border-racing-blue outline-none"
+                                                                            placeholder="Type an exercise name..."
+                                                                        />
+                                                                        <div className="flex gap-2">
+                                                                            <button
+                                                                                type="button"
+                                                                                onClick={(e) => {
+                                                                                    e.preventDefault();
+                                                                                    e.stopPropagation();
+                                                                                    const val = (customEdit.value || '').trim();
+                                                                                    if (!val) {
+                                                                                        setToast({ type: 'error', message: 'Enter an exercise name or choose one from the list.' });
+                                                                                        return;
+                                                                                    }
+                                                                                    substituteExercise(ex.name, val);
+                                                                                    setCustomEdit({ originalName: null, value: '' });
+                                                                                    setToast({ type: 'success', message: 'Exercise updated.' });
+                                                                                }}
+                                                                                className="h-10 px-4 bg-racing-blue hover:opacity-90 rounded-lg font-racing text-sm tracking-wider"
+                                                                            >
+                                                                                SAVE
+                                                                            </button>
+                                                                            <button
+                                                                                type="button"
+                                                                                onClick={(e) => {
+                                                                                    e.preventDefault();
+                                                                                    e.stopPropagation();
+                                                                                    setCustomEdit({ originalName: null, value: '' });
+                                                                                }}
+                                                                                className="h-10 px-4 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-lg font-racing text-sm tracking-wider"
+                                                                            >
+                                                                                CANCEL
+                                                                            </button>
+                                                                        </div>
+                                                                    </div>
+                                                                </div>
+                                                            )}
+
                                                             {[...Array(targetSets)].map((_, setIdx) => {
                                                                 const setNum = setIdx + 1;
                                                                 const setData = exerciseData?.sets?.[setNum];
@@ -849,23 +1066,19 @@ setHistoryStatus({ loading: false, error: '' });
                                                         return;
                                                     }
                                                     try {
-                                                        
-const payload = encodeURIComponent(JSON.stringify({
-    timestamp: new Date().toISOString(),
-    program: activeTab,
-    workoutName: 'Test Save',
-    exercises: []
-}));
-const resp = await jsonpRequest(scriptUrl, {
-    action: 'append_workout',
-    spreadsheetId,
-    payload
-});
-if (!resp || (resp.ok !== true && resp.success !== true)) {
-    showToast('error', resp?.error || resp?.message || 'Test save failed.');
-    return;
-}
-showToast('success', 'Test save succeeded.');} catch (e) {
+                                                        const postBody = JSON.stringify({
+                                                            action: 'append_workout',
+                                                            spreadsheetId,
+                                                            payload: {
+                                                                timestamp: new Date().toISOString(),
+                                                                program: activeTab,
+                                                                workoutName: 'Test Save',
+                                                                exercises: []
+                                                            }
+                                                        });
+                                                        await postToAppsScript(scriptUrl, postBody);
+                                                        showToast('success', 'Test save sent. Check your sheet for a new row.');
+                                                    } catch (e) {
                                                         console.error(e);
                                                         showToast('error', 'Test save failed. Check deployment permissions.');
                                                     }
